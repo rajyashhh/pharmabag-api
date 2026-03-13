@@ -10,6 +10,8 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -19,6 +21,8 @@ import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
+@ApiTags('Orders')
+@ApiBearerAuth('JWT-auth')
 @Controller('orders')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class OrdersController {
@@ -28,13 +32,13 @@ export class OrdersController {
   // BUYER ENDPOINTS
   // ──────────────────────────────────────────────
 
-  /**
-   * POST /api/orders
-   * Checkout — create an order from the buyer's cart.
-   */
   @Post()
   @Roles(Role.BUYER)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Checkout — create order from cart' })
+  @ApiResponse({ status: 201, description: 'Order placed' })
+  @ApiResponse({ status: 400, description: 'Cart is empty or validation error' })
   async checkout(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateOrderDto,
@@ -43,38 +47,32 @@ export class OrdersController {
     return { message: 'Order placed successfully', data };
   }
 
-  /**
-   * GET /api/orders
-   * List all orders for the current buyer.
-   */
   @Get()
   @Roles(Role.BUYER)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List buyer orders' })
+  @ApiResponse({ status: 200, description: 'Buyer orders returned' })
   async getBuyerOrders(@CurrentUser('id') userId: string) {
     const data = await this.ordersService.getBuyerOrders(userId);
     return { message: 'Orders retrieved successfully', data };
   }
 
-  /**
-   * GET /api/orders/seller
-   * List orders containing items sold by the current seller.
-   * NOTE: This must be defined BEFORE :id so NestJS doesn't treat "seller" as a UUID.
-   */
   @Get('seller')
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List orders for current seller' })
+  @ApiResponse({ status: 200, description: 'Seller orders returned' })
   async getSellerOrders(@CurrentUser('id') userId: string) {
     const data = await this.ordersService.getSellerOrders(userId);
     return { message: 'Seller orders retrieved successfully', data };
   }
 
-  /**
-   * GET /api/orders/:id
-   * Get full order detail for the current buyer.
-   */
   @Get(':id')
   @Roles(Role.BUYER)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get full order detail' })
+  @ApiResponse({ status: 200, description: 'Order details returned' })
+  @ApiResponse({ status: 404, description: 'Order not found' })
   async getOrderDetail(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) orderId: string,
@@ -87,13 +85,11 @@ export class OrdersController {
   // SELLER ENDPOINTS
   // ──────────────────────────────────────────────
 
-  /**
-   * PATCH /api/orders/:id/status
-   * Seller updates order status (ACCEPTED → SHIPPED → OUT_FOR_DELIVERY → DELIVERED).
-   */
   @Patch(':id/status')
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update order status (seller)' })
+  @ApiResponse({ status: 200, description: 'Order status updated' })
   async updateOrderStatus(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) orderId: string,

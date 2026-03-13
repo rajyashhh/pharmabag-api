@@ -1,0 +1,725 @@
+{
+  "info": {
+    "name": "PharmaBag API",
+    "description": "B2B Pharmaceutical Marketplace API — Complete endpoint collection.\n\nBase URL: {{baseUrl}} (default http://localhost:3000/api)\nSwagger Docs: http://localhost:3000/api/docs\n\nTest credentials:\n- Buyer: 7777777777\n- Seller: 8888888888\n- Admin: 9999999999\n\nOTP in dev mode is logged to console. Retrieve from Redis: redis-cli GET otp:<phone>",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "buyerToken", "value": "" },
+    { "key": "sellerToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "productId", "value": "" },
+    { "key": "orderId", "value": "" },
+    { "key": "paymentId", "value": "" },
+    { "key": "cartItemId", "value": "" },
+    { "key": "ticketId", "value": "" },
+    { "key": "settlementId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "userId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/send-otp",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7777777777\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', res.accessToken);",
+                  "  const phone = JSON.parse(pm.request.body.raw).phone;",
+                  "  if (phone === '7777777777') pm.collectionVariables.set('buyerToken', res.accessToken);",
+                  "  if (phone === '8888888888') pm.collectionVariables.set('sellerToken', res.accessToken);",
+                  "  if (phone === '9999999999') pm.collectionVariables.set('adminToken', res.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/verify-otp",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"7777777777\",\n  \"otp\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"your-refresh-token-here\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Buyers",
+      "item": [
+        {
+          "name": "Create Buyer Profile",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/buyers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"legalName\": \"MedPlus Pharmacy Pvt Ltd\",\n  \"gstNumber\": \"27AABCU9603R1ZM\",\n  \"panNumber\": \"ABCDE1234F\",\n  \"drugLicenseNumber\": \"DL-MH-2024-001234\",\n  \"drugLicenseUrl\": \"https://example.com/drug-license.pdf\",\n  \"address\": \"123 MG Road\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"400001\",\n  \"latitude\": 19.076,\n  \"longitude\": 72.8777\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Buyer Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/buyers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Update Buyer Profile",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/buyers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"456 Updated Road\",\n  \"city\": \"Pune\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sellers",
+      "item": [
+        {
+          "name": "Create Seller Profile",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/sellers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"PharmaCorp Distributors\",\n  \"gstNumber\": \"27AABCU9603R1ZM\",\n  \"panNumber\": \"ABCDE1234F\",\n  \"drugLicenseNumber\": \"DL-MH-2024-005678\",\n  \"drugLicenseUrl\": \"https://example.com/drug-license.pdf\",\n  \"address\": \"456 Industrial Area\",\n  \"city\": \"Delhi\",\n  \"state\": \"Delhi\",\n  \"pincode\": \"110001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Seller Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/sellers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        },
+        {
+          "name": "Update Seller Profile",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/sellers/profile",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"PharmaCorp Updated\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "item": [
+        {
+          "name": "List Products (Public)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=20&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "sortBy", "value": "createdAt" },
+                { "key": "sortOrder", "value": "desc" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "categoryId", "value": "", "disabled": true },
+                { "key": "subCategoryId", "value": "", "disabled": true },
+                { "key": "manufacturer", "value": "", "disabled": true }
+              ]
+            },
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/categories",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Create Product (Seller)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('productId', res.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/products",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Paracetamol 500mg\",\n  \"categoryId\": \"uuid-of-category\",\n  \"subCategoryId\": \"uuid-of-subcategory\",\n  \"manufacturer\": \"Cipla Ltd\",\n  \"chemicalComposition\": \"Paracetamol IP 500mg\",\n  \"description\": \"Analgesic and antipyretic tablet\",\n  \"mrp\": 25.50,\n  \"gstPercent\": 12,\n  \"minimumOrderQuantity\": 10,\n  \"maximumOrderQuantity\": 1000,\n  \"stock\": 500,\n  \"expiryDate\": \"2026-12-31\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Seller's Own Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/seller/own?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "seller", "own"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        },
+        {
+          "name": "Update Product (Seller)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Paracetamol 650mg\",\n  \"mrp\": 30.00,\n  \"stock\": 450\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Product (Seller)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/products/{{productId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Add to Cart",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('cartItemId', res.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/cart/add",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"quantity\": 5\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/cart",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Update Cart Item",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/cart/item/{{cartItemId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quantity\": 10\n}"
+            }
+          }
+        },
+        {
+          "name": "Remove Cart Item",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cart/item/{{cartItemId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/cart",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Create Order (Checkout)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('orderId', res.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/orders",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Raj Pharmacy\",\n  \"phone\": \"7777777777\",\n  \"address\": \"123 MG Road\",\n  \"city\": \"Mumbai\",\n  \"state\": \"Maharashtra\",\n  \"pincode\": \"400001\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Buyer Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Get Seller Orders",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders/seller",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders/{{orderId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Update Order Status (Seller)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/orders/{{orderId}}/status",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACCEPTED\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('paymentId', res.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 1000.00,\n  \"method\": \"UPI\",\n  \"referenceNumber\": \"UPI-REF-12345\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Upload Payment Proof",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/payments/{{paymentId}}/proof",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proofUrl\": \"https://s3.amazonaws.com/pharmabag-images/payment-proof.jpg\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Payments for Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/payments/order/{{orderId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] }
+          }
+        },
+        {
+          "name": "Confirm Payment (Admin)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/payments/{{paymentId}}/confirm",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"remarks\": \"Payment verified against bank statement\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reject Payment (Admin)",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/payments/{{paymentId}}/reject",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Storage",
+      "item": [
+        {
+          "name": "Upload Product Image",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/storage/product-image",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Payment Proof File",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/storage/payment-proof",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload KYC Document",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/storage/kyc",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/notifications"
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reviews",
+      "item": [
+        {
+          "name": "Create Review",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/reviews",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{buyerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": \"{{productId}}\",\n  \"rating\": 5,\n  \"comment\": \"Excellent product quality and fast delivery\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Product Reviews",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/reviews/product/{{productId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "Create Support Ticket",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.id) pm.collectionVariables.set('ticketId', res.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/tickets",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subject\": \"Order delivery delayed\",\n  \"message\": \"My order #12345 has been pending for 5 days. Please look into this.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/tickets"
+          }
+        },
+        {
+          "name": "Add Message to Ticket",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/tickets/{{ticketId}}/messages",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Any update on this issue?\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Settlements",
+      "item": [
+        {
+          "name": "Get Seller Settlements",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/settlements/seller",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        },
+        {
+          "name": "Get Settlement Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/settlements/summary",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        },
+        {
+          "name": "Get Settlement History",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/settlements/history",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/dashboard",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        },
+        {
+          "name": "Get Pending Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/admin/users/pending",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        },
+        {
+          "name": "Approve User",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/admin/users/{{userId}}/approve",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        },
+        {
+          "name": "Reject User",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/admin/users/{{userId}}/reject",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        },
+        {
+          "name": "Get All Settlements (Admin)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/settlements?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "settlements"],
+              "query": [
+                { "key": "status", "value": "PENDING" }
+              ]
+            },
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+          }
+        },
+        {
+          "name": "Mark Settlement as Paid",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/admin/settlements/{{settlementId}}/mark-paid",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payoutReference\": \"NEFT-REF-20240101-001\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

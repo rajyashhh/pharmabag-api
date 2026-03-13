@@ -11,6 +11,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -20,18 +21,18 @@ import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 
+@ApiTags('Cart')
+@ApiBearerAuth('JWT-auth')
 @Controller('cart')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.BUYER)
 export class CartController {
   constructor(private readonly cartService: CartService) {}
 
-  /**
-   * POST /api/cart/add
-   * Add a product to the buyer's cart.
-   */
   @Post('add')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a product to cart' })
+  @ApiResponse({ status: 201, description: 'Product added to cart' })
   async addToCart(
     @CurrentUser('id') userId: string,
     @Body() dto: AddToCartDto,
@@ -40,23 +41,19 @@ export class CartController {
     return { message: 'Product added to cart', data };
   }
 
-  /**
-   * GET /api/cart
-   * Get the current buyer's cart with items, product & seller details.
-   */
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get current cart with items' })
+  @ApiResponse({ status: 200, description: 'Cart returned' })
   async getCart(@CurrentUser('id') userId: string) {
     const data = await this.cartService.getCart(userId);
     return { message: 'Cart retrieved successfully', data };
   }
 
-  /**
-   * PATCH /api/cart/item/:id
-   * Update quantity of a cart item.
-   */
   @Patch('item/:id')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update cart item quantity' })
+  @ApiResponse({ status: 200, description: 'Cart item updated' })
   async updateCartItem(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) cartItemId: string,
@@ -66,12 +63,10 @@ export class CartController {
     return { message: 'Cart item updated', data };
   }
 
-  /**
-   * DELETE /api/cart/item/:id
-   * Remove a single item from the cart.
-   */
   @Delete('item/:id')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Remove single item from cart' })
+  @ApiResponse({ status: 200, description: 'Cart item removed' })
   async removeCartItem(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) cartItemId: string,
@@ -79,12 +74,10 @@ export class CartController {
     return this.cartService.removeCartItem(userId, cartItemId);
   }
 
-  /**
-   * DELETE /api/cart
-   * Clear entire cart.
-   */
   @Delete()
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Clear entire cart' })
+  @ApiResponse({ status: 200, description: 'Cart cleared' })
   async clearCart(@CurrentUser('id') userId: string) {
     return this.cartService.clearCart(userId);
   }

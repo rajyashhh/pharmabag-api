@@ -1,7 +1,9 @@
 import { IsEnum } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 import { OrderStatus } from '@prisma/client';
 
 export class UpdateOrderStatusDto {
+  @ApiProperty({ enum: ['ACCEPTED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED'], example: 'ACCEPTED' })
   @IsEnum(
     {
       ACCEPTED: OrderStatus.ACCEPTED,

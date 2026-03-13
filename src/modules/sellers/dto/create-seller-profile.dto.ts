@@ -4,12 +4,15 @@ import {
   IsOptional,
   Matches,
 } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateSellerProfileDto {
+  @ApiProperty({ example: 'PharmaDist India Pvt Ltd' })
   @IsString()
   @IsNotEmpty()
   companyName: string;
 
+  @ApiProperty({ example: '27AABCU9603R1ZM', description: '15-char GSTIN' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/, {
@@ -17,6 +20,7 @@ export class CreateSellerProfileDto {
   })
   gstNumber: string;
 
+  @ApiProperty({ example: 'ABCDE1234F', description: '10-char PAN' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^[A-Z]{5}\d{4}[A-Z]{1}$/, {
@@ -24,26 +28,32 @@ export class CreateSellerProfileDto {
   })
   panNumber: string;
 
+  @ApiProperty({ example: 'DL-MH-654321' })
   @IsString()
   @IsNotEmpty()
   drugLicenseNumber: string;
 
+  @ApiProperty({ example: 'https://s3.amazonaws.com/drug-license.pdf' })
   @IsString()
   @IsNotEmpty()
   drugLicenseUrl: string;
 
+  @ApiProperty({ example: '456, Industrial Area, Bhiwandi' })
   @IsString()
   @IsNotEmpty()
   address: string;
 
+  @ApiProperty({ example: 'Mumbai' })
   @IsString()
   @IsNotEmpty()
   city: string;
 
+  @ApiProperty({ example: 'Maharashtra' })
   @IsString()
   @IsNotEmpty()
   state: string;
 
+  @ApiProperty({ example: '421302', description: '6-digit pincode' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^\d{6}$/, { message: 'pincode must be a valid 6-digit code' })

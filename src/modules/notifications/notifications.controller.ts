@@ -8,10 +8,13 @@ import {
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { NotificationsService } from './notifications.service';
 
+@ApiTags('Notifications')
+@ApiBearerAuth('JWT-auth')
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
@@ -19,6 +22,8 @@ export class NotificationsController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get all notifications for current user' })
+  @ApiResponse({ status: 200, description: 'Notifications list returned' })
   async getNotifications(@CurrentUser('id') userId: string) {
     const data = await this.notificationsService.getUserNotifications(userId);
     return { message: 'Notifications retrieved', data };
@@ -26,6 +31,8 @@ export class NotificationsController {
 
   @Patch(':id/read')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a notification as read' })
+  @ApiResponse({ status: 200, description: 'Notification marked as read' })
   async markAsRead(
     @CurrentUser('id') userId: string,
     @Param('id', ParseUUIDPipe) notificationId: string,

@@ -7,53 +7,54 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /**
-   * POST /api/auth/send-otp
-   * Sends a 6-digit OTP to the given phone number.
-   */
   @Post('send-otp')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send OTP to phone number' })
+  @ApiResponse({ status: 200, description: 'OTP sent successfully' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   async sendOtp(@Body() dto: SendOtpDto) {
     return this.authService.sendOtp(dto.phone);
   }
 
-  /**
-   * POST /api/auth/verify-otp
-   * Verifies OTP and returns JWT tokens + user.
-   * Creates a new BUYER account if user doesn't exist.
-   */
   @Post('verify-otp')
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify OTP and receive JWT tokens' })
+  @ApiResponse({ status: 200, description: 'OTP verified, tokens returned' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired OTP' })
   async verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto.phone, dto.otp);
   }
 
-  /**
-   * POST /api/auth/refresh
-   * Returns a new access + refresh token pair.
-   */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refresh JWT access token' })
+  @ApiResponse({ status: 200, description: 'New token pair returned' })
+  @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refreshToken(@Body('refreshToken') refreshToken: string) {
     return this.authService.refreshToken(refreshToken);
   }
 
-  /**
-   * GET /api/auth/me
-   * Returns the authenticated user's profile.
-   */
   @Get('me')
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'User profile returned' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getMe(@CurrentUser('id') userId: string) {
     return this.authService.getMe(userId);
   }

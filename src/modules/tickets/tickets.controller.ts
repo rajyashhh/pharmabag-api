@@ -7,21 +7,23 @@ import {
   ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
+@ApiTags('Tickets')
+@ApiBearerAuth('JWT-auth')
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
   constructor(private readonly ticketsService: TicketsService) {}
 
-  /**
-   * POST /api/tickets — Create a support ticket (any authenticated user)
-   */
   @Post()
+  @ApiOperation({ summary: 'Create a support ticket' })
+  @ApiResponse({ status: 201, description: 'Ticket created' })
   createTicket(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateTicketDto,
@@ -29,10 +31,9 @@ export class TicketsController {
     return this.ticketsService.createTicket(userId, dto);
   }
 
-  /**
-   * GET /api/tickets — Get tickets (own tickets for buyer/seller, all for admin)
-   */
   @Get()
+  @ApiOperation({ summary: 'Get tickets (own for buyer/seller, all for admin)' })
+  @ApiResponse({ status: 200, description: 'Tickets list returned' })
   getTickets(
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: any,
@@ -40,10 +41,9 @@ export class TicketsController {
     return this.ticketsService.getTickets(userId, role);
   }
 
-  /**
-   * POST /api/tickets/:id/messages — Add a message to a ticket
-   */
   @Post(':id/messages')
+  @ApiOperation({ summary: 'Add a message to a ticket' })
+  @ApiResponse({ status: 201, description: 'Message added' })
   addMessage(
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: any,

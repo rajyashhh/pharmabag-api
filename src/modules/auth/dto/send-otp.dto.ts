@@ -1,6 +1,8 @@
 import { IsNotEmpty, IsString, Matches } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class SendOtpDto {
+  @ApiProperty({ example: '7777777777', description: '10-digit Indian mobile number' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^[6-9]\d{9}$/, {

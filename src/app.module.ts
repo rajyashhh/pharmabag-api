@@ -1,5 +1,9 @@
-import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { LoggerModule } from 'nestjs-pino';
+import * as Joi from 'joi';
 
 // Infrastructure modules
 import { DatabaseModule } from './database/database.module';
@@ -22,15 +26,53 @@ import { SettlementsModule } from './modules/settlements/settlements.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 
-// Middleware
-import { LoggerMiddleware } from './common/middleware/logger.middleware';
-
 @Module({
   imports: [
-    // Global config
+    // ─── Global config with Joi validation ────────────
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validationSchema: Joi.object({
+        PORT: Joi.number().default(3000),
+        DATABASE_URL: Joi.string().required(),
+        JWT_SECRET: Joi.string().required(),
+        REDIS_HOST: Joi.string().default('localhost'),
+        REDIS_PORT: Joi.number().default(6379),
+        AWS_ACCESS_KEY: Joi.string().allow('').default(''),
+        AWS_SECRET_KEY: Joi.string().allow('').default(''),
+        AWS_BUCKET: Joi.string().default('pharmabag-images'),
+        AWS_REGION: Joi.string().default('ap-south-1'),
+        CORS_ORIGINS: Joi.string().default(
+          'http://localhost:3000,http://localhost:5173',
+        ),
+        PLATFORM_COMMISSION_RATE: Joi.number().default(0.05),
+      }),
+      validationOptions: { abortEarly: true },
+    }),
+
+    // ─── Structured logging (Pino) ───────────────────
+    LoggerModule.forRoot({
+      pinoHttp: {
+        transport:
+          process.env.NODE_ENV !== 'production'
+            ? { target: 'pino-pretty', options: { colorize: true, singleLine: true } }
+            : undefined,
+        autoLogging: true,
+        serializers: {
+          req: (req: any) => ({
+            method: req.method,
+            url: req.url,
+          }),
+          res: (res: any) => ({
+            statusCode: res.statusCode,
+          }),
+        },
+      },
+    }),
+
+    // ─── Rate limiting ───────────────────────────────
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 20 }],
     }),
 
     // Infrastructure
@@ -54,9 +96,9 @@ import { LoggerMiddleware } from './common/middleware/logger.middleware';
     ReviewsModule,
     TicketsModule,
   ],
+  providers: [
+    // Apply throttler guard globally
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LoggerMiddleware).forRoutes('*path');
-  }
-}
+export class AppModule {}

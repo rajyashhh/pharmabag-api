@@ -11,6 +11,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -21,6 +22,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 
+@ApiTags('Products')
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
@@ -29,25 +31,29 @@ export class ProductsController {
   // PUBLIC ENDPOINTS (No auth required)
   // ──────────────────────────────────────────────
 
-  /** Browse all active products with filtering & pagination */
   @Get()
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Browse products with filtering & pagination' })
+  @ApiResponse({ status: 200, description: 'Paginated product list' })
   async findAll(@Query() query: QueryProductDto) {
     const data = await this.productsService.findAll(query);
     return { message: 'Products retrieved successfully', data };
   }
 
-  /** List all categories with sub-categories */
   @Get('categories')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List all categories with sub-categories' })
+  @ApiResponse({ status: 200, description: 'Category tree returned' })
   async getCategories() {
     const data = await this.productsService.getCategories();
     return { message: 'Categories retrieved successfully', data };
   }
 
-  /** Get a single product by ID */
   @Get(':id')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get single product by ID' })
+  @ApiResponse({ status: 200, description: 'Product details returned' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
   async findOne(@Param('id') id: string) {
     const data = await this.productsService.findOne(id);
     return { message: 'Product retrieved successfully', data };
@@ -57,11 +63,14 @@ export class ProductsController {
   // SELLER ENDPOINTS (Auth + SELLER role required)
   // ──────────────────────────────────────────────
 
-  /** Create a new product (seller only) */
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Create a new product (seller only)' })
+  @ApiResponse({ status: 201, description: 'Product created' })
+  @ApiResponse({ status: 403, description: 'Forbidden — not a seller' })
   async create(
     @CurrentUser('id') userId: string,
     @Body() dto: CreateProductDto,
@@ -70,11 +79,13 @@ export class ProductsController {
     return { message: 'Product created successfully', data };
   }
 
-  /** List own products (seller only) */
   @Get('seller/own')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'List own products (seller only)' })
+  @ApiResponse({ status: 200, description: 'Seller products returned' })
   async findOwn(
     @CurrentUser('id') userId: string,
     @Query() query: QueryProductDto,
@@ -83,11 +94,13 @@ export class ProductsController {
     return { message: 'Products retrieved successfully', data };
   }
 
-  /** Update own product (seller only) */
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Update own product (seller only)' })
+  @ApiResponse({ status: 200, description: 'Product updated' })
   async update(
     @CurrentUser('id') userId: string,
     @Param('id') id: string,
@@ -97,11 +110,13 @@ export class ProductsController {
     return { message: 'Product updated successfully', data };
   }
 
-  /** Soft-delete own product (seller only) */
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SELLER)
   @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Soft-delete own product (seller only)' })
+  @ApiResponse({ status: 200, description: 'Product deleted' })
   async remove(
     @CurrentUser('id') userId: string,
     @Param('id') id: string,
