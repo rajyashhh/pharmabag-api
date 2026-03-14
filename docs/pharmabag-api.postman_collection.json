@@ -660,64 +660,324 @@
       "name": "Admin",
       "item": [
         {
-          "name": "Get Dashboard Stats",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/admin/dashboard",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
-          }
-        },
-        {
-          "name": "Get Pending Users",
-          "request": {
-            "method": "GET",
-            "url": "{{baseUrl}}/admin/users/pending",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
-          }
-        },
-        {
-          "name": "Approve User",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/admin/users/{{userId}}/approve",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
-          }
-        },
-        {
-          "name": "Reject User",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/admin/users/{{userId}}/reject",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
-          }
-        },
-        {
-          "name": "Get All Settlements (Admin)",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/admin/settlements?status=PENDING",
-              "host": ["{{baseUrl}}"],
-              "path": ["admin", "settlements"],
-              "query": [
-                { "key": "status", "value": "PENDING" }
-              ]
-            },
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
-          }
-        },
-        {
-          "name": "Mark Settlement as Paid",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/admin/settlements/{{settlementId}}/mark-paid",
-            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"payoutReference\": \"NEFT-REF-20240101-001\"\n}"
+          "name": "Dashboard",
+          "item": [
+            {
+              "name": "Get Dashboard Stats",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/dashboard",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
             }
-          }
+          ]
+        },
+        {
+          "name": "User Management",
+          "item": [
+            {
+              "name": "Get All Users",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/users?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "users"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "role", "value": "BUYER", "disabled": true },
+                    { "key": "status", "value": "APPROVED", "disabled": true },
+                    { "key": "search", "value": "", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Pending Users",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users/pending",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get User by ID",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/users/{{userId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Approve User",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/users/{{userId}}/approve",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Reject User",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/users/{{userId}}/reject",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Block User",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/users/{{userId}}/block",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Unblock User",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/users/{{userId}}/unblock",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product Management",
+          "item": [
+            {
+              "name": "Get All Products",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/products?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "products"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "sellerId", "value": "", "disabled": true },
+                    { "key": "categoryId", "value": "", "disabled": true },
+                    { "key": "isActive", "value": "true", "disabled": true },
+                    { "key": "search", "value": "", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Product by ID",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/products/{{productId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Disable Product",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/products/{{productId}}/disable",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Enable Product",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/products/{{productId}}/enable",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Soft Delete Product",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/products/{{productId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Order Management",
+          "item": [
+            {
+              "name": "Get All Orders",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/orders?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "orders"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "status", "value": "PLACED", "disabled": true },
+                    { "key": "buyerId", "value": "", "disabled": true },
+                    { "key": "sellerId", "value": "", "disabled": true },
+                    { "key": "dateFrom", "value": "2024-01-01", "disabled": true },
+                    { "key": "dateTo", "value": "2025-12-31", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Order by ID",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/orders/{{orderId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Override Order Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/orders/{{orderId}}/status",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"CANCELLED\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Payment Management",
+          "item": [
+            {
+              "name": "Get All Payments",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/payments?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "payments"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "verificationStatus", "value": "PENDING", "disabled": true },
+                    { "key": "orderId", "value": "", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Confirm Payment",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/payments/{{paymentId}}/confirm",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Reject Payment",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/payments/{{paymentId}}/reject",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settlement Management",
+          "item": [
+            {
+              "name": "Get All Settlements",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/settlements?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "settlements"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "status", "value": "PENDING", "disabled": true },
+                    { "key": "sellerId", "value": "", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Mark Settlement as Paid",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/settlements/{{settlementId}}/mark-paid",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"payoutReference\": \"NEFT-REF-20240101-001\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ticket Management",
+          "item": [
+            {
+              "name": "Get All Tickets",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/tickets?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "tickets"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "status", "value": "OPEN", "disabled": true }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Ticket by ID",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/tickets/{{ticketId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Reply to Ticket",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/tickets/{{ticketId}}/reply",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"message\": \"Thank you for reaching out. We are looking into this issue.\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Ticket Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/tickets/{{ticketId}}/status",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"RESOLVED\"\n}"
+                }
+              }
+            }
+          ]
         }
       ]
     }

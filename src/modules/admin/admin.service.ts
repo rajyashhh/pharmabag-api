@@ -4,8 +4,24 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { UserStatus, OrderStatus, PaymentStatus, PaymentVerificationStatus } from '@prisma/client';
+import {
+  UserStatus,
+  OrderStatus,
+  PaymentStatus,
+  PaymentVerificationStatus,
+  TicketStatus,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
+import { QueryUsersDto } from './dto/query-users.dto';
+import { AdminQueryProductsDto } from './dto/query-products.dto';
+import { AdminQueryOrdersDto } from './dto/query-orders.dto';
+import { AdminQueryPaymentsDto } from './dto/query-payments.dto';
+import { AdminQuerySettlementsDto } from './dto/query-settlements.dto';
+import { AdminQueryTicketsDto } from './dto/query-tickets.dto';
+import { AdminUpdateOrderStatusDto } from './dto/admin-update-order-status.dto';
+import { AdminUpdateTicketStatusDto } from './dto/admin-update-ticket-status.dto';
+import { AdminReplyTicketDto } from './dto/admin-reply-ticket.dto';
 
 @Injectable()
 export class AdminService {
@@ -13,11 +29,140 @@ export class AdminService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * List all users with PENDING status, including their profiles.
-   */
+  // ════════════════════════════════════════════════════════
+  // DASHBOARD
+  // ════════════════════════════════════════════════════════
+
+  async getDashboard() {
+    const [
+      totalUsers,
+      totalBuyers,
+      totalSellers,
+      totalOrders,
+      revenueResult,
+      pendingOrders,
+      pendingPayments,
+      pendingSettlements,
+      totalProducts,
+      openTickets,
+      blockedUsers,
+      recentOrders,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { role: 'BUYER' } }),
+      this.prisma.user.count({ where: { role: 'SELLER' } }),
+      this.prisma.order.count(),
+      this.prisma.order.aggregate({ _sum: { totalAmount: true } }),
+      this.prisma.order.count({ where: { orderStatus: OrderStatus.PLACED } }),
+      this.prisma.payment.count({
+        where: { verificationStatus: PaymentVerificationStatus.PENDING },
+      }),
+      this.prisma.sellerSettlement.count({
+        where: { payoutStatus: 'PENDING' },
+      }),
+      this.prisma.product.count({ where: { deletedAt: null } }),
+      this.prisma.ticket.count({
+        where: { status: { in: [TicketStatus.OPEN, TicketStatus.IN_PROGRESS] } },
+      }),
+      this.prisma.user.count({ where: { status: UserStatus.BLOCKED } }),
+      this.prisma.order.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          totalAmount: true,
+          orderStatus: true,
+          paymentStatus: true,
+          createdAt: true,
+          buyer: { select: { id: true, phone: true } },
+        },
+      }),
+    ]);
+
+    return {
+      totalUsers,
+      totalBuyers,
+      totalSellers,
+      blockedUsers,
+      totalOrders,
+      totalRevenue: revenueResult._sum.totalAmount ?? 0,
+      totalProducts,
+      pendingOrders,
+      pendingPayments,
+      pendingSettlements,
+      openTickets,
+      recentOrders,
+    };
+  }
+
+  // ════════════════════════════════════════════════════════
+  // USER MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllUsers(query: QueryUsersDto) {
+    const { role, status, search, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {};
+    if (role) where.role = role;
+    if (status) where.status = status;
+
+    if (search) {
+      where.OR = [
+        { phone: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+        { buyerProfile: { legalName: { contains: search, mode: 'insensitive' } } },
+        { sellerProfile: { companyName: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          buyerProfile: true,
+          sellerProfile: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getUserById(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        role: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        buyerProfile: true,
+        sellerProfile: true,
+        _count: { select: { orders: true, reviews: true, tickets: true } },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
   async getPendingUsers() {
-    const users = await this.prisma.user.findMany({
+    return this.prisma.user.findMany({
       where: { status: UserStatus.PENDING },
       select: {
         id: true,
@@ -32,46 +177,29 @@ export class AdminService {
       },
       orderBy: { createdAt: 'asc' },
     });
-
-    return users;
   }
 
-  /**
-   * Approve a user by ID — sets status to APPROVED.
-   * Also sets seller verificationStatus to VERIFIED if applicable.
-   */
   async approveUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { sellerProfile: true },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.APPROVED) {
       throw new BadRequestException('User is already approved');
     }
 
-    // Update user status
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: { status: UserStatus.APPROVED },
       select: {
-        id: true,
-        phone: true,
-        email: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        buyerProfile: true,
-        sellerProfile: true,
+        id: true, phone: true, email: true, role: true,
+        status: true, createdAt: true, updatedAt: true,
+        buyerProfile: true, sellerProfile: true,
       },
     });
 
-    // If seller, also mark their profile as VERIFIED
     if (user.sellerProfile) {
       await this.prisma.sellerProfile.update({
         where: { userId },
@@ -83,20 +211,13 @@ export class AdminService {
     return updatedUser;
   }
 
-  /**
-   * Reject a user by ID — sets status to REJECTED.
-   * Also sets seller verificationStatus to REJECTED if applicable.
-   */
   async rejectUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { sellerProfile: true },
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    if (!user) throw new NotFoundException('User not found');
     if (user.status === UserStatus.REJECTED) {
       throw new BadRequestException('User is already rejected');
     }
@@ -105,19 +226,12 @@ export class AdminService {
       where: { id: userId },
       data: { status: UserStatus.REJECTED },
       select: {
-        id: true,
-        phone: true,
-        email: true,
-        role: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        buyerProfile: true,
-        sellerProfile: true,
+        id: true, phone: true, email: true, role: true,
+        status: true, createdAt: true, updatedAt: true,
+        buyerProfile: true, sellerProfile: true,
       },
     });
 
-    // If seller, also mark their profile as REJECTED
     if (user.sellerProfile) {
       await this.prisma.sellerProfile.update({
         where: { userId },
@@ -129,40 +243,583 @@ export class AdminService {
     return updatedUser;
   }
 
-  async getDashboard() {
-    const [
-      totalUsers,
-      totalBuyers,
-      totalSellers,
-      totalOrders,
-      revenueResult,
-      pendingOrders,
-      pendingPayments,
-      pendingSettlements,
-    ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { role: 'BUYER' } }),
-      this.prisma.user.count({ where: { role: 'SELLER' } }),
-      this.prisma.order.count(),
-      this.prisma.order.aggregate({ _sum: { totalAmount: true } }),
-      this.prisma.order.count({ where: { orderStatus: OrderStatus.PLACED } }),
-      this.prisma.payment.count({
-        where: { verificationStatus: PaymentVerificationStatus.PENDING },
+  async blockUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status === UserStatus.BLOCKED) {
+      throw new BadRequestException('User is already blocked');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: UserStatus.BLOCKED },
+      select: {
+        id: true, phone: true, email: true, role: true,
+        status: true, createdAt: true, updatedAt: true,
+        buyerProfile: true, sellerProfile: true,
+      },
+    });
+
+    this.logger.log(`User ${userId} blocked by admin`);
+    return updatedUser;
+  }
+
+  async unblockUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.status !== UserStatus.BLOCKED) {
+      throw new BadRequestException('User is not blocked');
+    }
+
+    const updatedUser = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: UserStatus.APPROVED },
+      select: {
+        id: true, phone: true, email: true, role: true,
+        status: true, createdAt: true, updatedAt: true,
+        buyerProfile: true, sellerProfile: true,
+      },
+    });
+
+    this.logger.log(`User ${userId} unblocked by admin`);
+    return updatedUser;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PRODUCT MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllProducts(query: AdminQueryProductsDto) {
+    const { sellerId, categoryId, subCategoryId, search, isActive, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductWhereInput = { deletedAt: null };
+    if (sellerId) where.sellerId = sellerId;
+    if (categoryId) where.categoryId = categoryId;
+    if (subCategoryId) where.subCategoryId = subCategoryId;
+    if (isActive === 'true') where.isActive = true;
+    if (isActive === 'false') where.isActive = false;
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { manufacturer: { contains: search, mode: 'insensitive' } },
+        { chemicalComposition: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.product.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          manufacturer: true,
+          mrp: true,
+          gstPercent: true,
+          isActive: true,
+          createdAt: true,
+          updatedAt: true,
+          seller: { select: { id: true, companyName: true, userId: true } },
+          category: { select: { id: true, name: true } },
+          subCategory: { select: { id: true, name: true } },
+          batches: {
+            select: { id: true, batchNumber: true, stock: true, expiryDate: true },
+            orderBy: { expiryDate: 'asc' },
+          },
+          inventoryAlerts: {
+            select: { id: true, alertType: true, message: true, createdAt: true },
+            take: 5,
+            orderBy: { createdAt: 'desc' },
+          },
+          _count: { select: { reviews: true, orderItems: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
       }),
-      this.prisma.sellerSettlement.count({
-        where: { payoutStatus: 'PENDING' },
+      this.prisma.product.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getProductById(productId: string) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        seller: { select: { id: true, companyName: true, userId: true, city: true, state: true } },
+        category: { select: { id: true, name: true } },
+        subCategory: { select: { id: true, name: true } },
+        batches: { orderBy: { expiryDate: 'asc' } },
+        images: { select: { id: true, url: true } },
+        inventoryAlerts: { orderBy: { createdAt: 'desc' }, take: 10 },
+        _count: { select: { reviews: true, orderItems: true, cartItems: true } },
+      },
+    });
+
+    if (!product) throw new NotFoundException('Product not found');
+    return product;
+  }
+
+  async disableProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (!product.isActive) throw new BadRequestException('Product is already disabled');
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { isActive: false },
+      select: { id: true, name: true, isActive: true, updatedAt: true },
+    });
+
+    this.logger.log(`Product ${productId} disabled by admin`);
+    return updated;
+  }
+
+  async enableProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.isActive) throw new BadRequestException('Product is already active');
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { isActive: true },
+      select: { id: true, name: true, isActive: true, updatedAt: true },
+    });
+
+    this.logger.log(`Product ${productId} enabled by admin`);
+    return updated;
+  }
+
+  async softDeleteProduct(productId: string) {
+    const product = await this.prisma.product.findUnique({ where: { id: productId } });
+    if (!product) throw new NotFoundException('Product not found');
+    if (product.deletedAt) throw new BadRequestException('Product is already deleted');
+
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: { deletedAt: new Date(), isActive: false },
+      select: { id: true, name: true, isActive: true, deletedAt: true },
+    });
+
+    this.logger.log(`Product ${productId} soft-deleted by admin`);
+    return updated;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // ORDER MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllOrders(query: AdminQueryOrdersDto) {
+    const { status, sellerId, buyerId, dateFrom, dateTo, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.OrderWhereInput = {};
+    if (status) where.orderStatus = status;
+    if (buyerId) where.buyerId = buyerId;
+    if (sellerId) where.items = { some: { sellerId } };
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) (where.createdAt as any).gte = new Date(dateFrom);
+      if (dateTo) (where.createdAt as any).lte = new Date(dateTo);
+    }
+
+    const [data, total] = await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        select: {
+          id: true,
+          totalAmount: true,
+          orderStatus: true,
+          paymentStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          buyer: {
+            select: {
+              id: true,
+              phone: true,
+              email: true,
+              buyerProfile: { select: { legalName: true } },
+            },
+          },
+          items: {
+            select: {
+              id: true,
+              quantity: true,
+              unitPrice: true,
+              totalPrice: true,
+              product: { select: { id: true, name: true } },
+              seller: { select: { id: true, companyName: true } },
+            },
+          },
+          address: true,
+          _count: { select: { payments: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getOrderById(orderId: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        buyer: {
+          select: {
+            id: true,
+            phone: true,
+            email: true,
+            buyerProfile: { select: { legalName: true, city: true, state: true } },
+          },
+        },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, manufacturer: true, mrp: true } },
+            seller: { select: { id: true, companyName: true } },
+          },
+        },
+        address: true,
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            referenceNumber: true,
+            proofUrl: true,
+            verificationStatus: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
+  }
+
+  async adminUpdateOrderStatus(orderId: string, dto: AdminUpdateOrderStatusDto) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const updated = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { orderStatus: dto.status },
+      select: {
+        id: true,
+        totalAmount: true,
+        orderStatus: true,
+        paymentStatus: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    this.logger.log(`Order ${orderId} status overridden to ${dto.status} by admin`);
+    return updated;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // PAYMENT MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllPayments(query: AdminQueryPaymentsDto) {
+    const { verificationStatus, orderId, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PaymentWhereInput = {};
+    if (verificationStatus) where.verificationStatus = verificationStatus;
+    if (orderId) where.orderId = orderId;
+
+    const [data, total] = await Promise.all([
+      this.prisma.payment.findMany({
+        where,
+        select: {
+          id: true,
+          orderId: true,
+          amount: true,
+          method: true,
+          referenceNumber: true,
+          proofUrl: true,
+          verificationStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          order: {
+            select: {
+              id: true,
+              totalAmount: true,
+              orderStatus: true,
+              buyer: { select: { id: true, phone: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.payment.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async adminConfirmPayment(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        order: {
+          include: {
+            items: { select: { id: true, sellerId: true, totalPrice: true } },
+          },
+        },
+      },
+    });
+
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.verificationStatus === PaymentVerificationStatus.CONFIRMED) {
+      throw new BadRequestException('Payment is already confirmed');
+    }
+    if (payment.verificationStatus === PaymentVerificationStatus.REJECTED) {
+      throw new BadRequestException('Cannot confirm a rejected payment');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const confirmed = await tx.payment.update({
+        where: { id: paymentId },
+        data: { verificationStatus: PaymentVerificationStatus.CONFIRMED },
+      });
+
+      // Recalculate order payment status
+      const confirmedPayments = await tx.payment.findMany({
+        where: {
+          orderId: payment.orderId,
+          verificationStatus: PaymentVerificationStatus.CONFIRMED,
+        },
+      });
+
+      const totalPaid = confirmedPayments.reduce((sum, p) => sum + p.amount, 0);
+      const newStatus =
+        totalPaid >= payment.order.totalAmount
+          ? PaymentStatus.SUCCESS
+          : totalPaid > 0
+            ? PaymentStatus.PARTIAL
+            : PaymentStatus.PENDING;
+
+      await tx.order.update({
+        where: { id: payment.orderId },
+        data: { paymentStatus: newStatus },
+      });
+
+      // If fully paid AND delivered → create seller settlements
+      if (
+        newStatus === PaymentStatus.SUCCESS &&
+        payment.order.orderStatus === OrderStatus.DELIVERED
+      ) {
+        for (const item of payment.order.items) {
+          const existing = await tx.sellerSettlement.findUnique({
+            where: { orderItemId: item.id },
+          });
+          if (!existing) {
+            const commission = +(item.totalPrice * 0.05).toFixed(2);
+            await tx.sellerSettlement.create({
+              data: {
+                sellerId: item.sellerId,
+                orderItemId: item.id,
+                amount: +(item.totalPrice - commission).toFixed(2),
+                commission,
+                payoutStatus: 'PENDING',
+              },
+            });
+          }
+        }
+      }
+
+      return { confirmed, totalPaid, newStatus };
+    });
+
+    this.logger.log(`Payment ${paymentId} confirmed by admin`);
+    return {
+      payment: result.confirmed,
+      orderPaymentStatus: result.newStatus,
+      totalPaid: result.totalPaid,
+      totalAmount: payment.order.totalAmount,
+    };
+  }
+
+  async adminRejectPayment(paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new NotFoundException('Payment not found');
+    if (payment.verificationStatus === PaymentVerificationStatus.REJECTED) {
+      throw new BadRequestException('Payment is already rejected');
+    }
+    if (payment.verificationStatus === PaymentVerificationStatus.CONFIRMED) {
+      throw new BadRequestException('Cannot reject a confirmed payment');
+    }
+
+    const rejected = await this.prisma.payment.update({
+      where: { id: paymentId },
+      data: { verificationStatus: PaymentVerificationStatus.REJECTED },
+    });
+
+    this.logger.log(`Payment ${paymentId} rejected by admin`);
+    return rejected;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // SETTLEMENT MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllSettlements(query: AdminQuerySettlementsDto) {
+    const { status, sellerId, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.SellerSettlementWhereInput = {};
+    if (status) where.payoutStatus = status;
+    if (sellerId) where.sellerId = sellerId;
+
+    const [data, total] = await Promise.all([
+      this.prisma.sellerSettlement.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          seller: { select: { id: true, companyName: true, userId: true } },
+          orderItem: {
+            select: {
+              orderId: true,
+              totalPrice: true,
+              product: { select: { id: true, name: true } },
+            },
+          },
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.sellerSettlement.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async markSettlementPaid(settlementId: string, payoutReference: string) {
+    const settlement = await this.prisma.sellerSettlement.findUnique({
+      where: { id: settlementId },
+    });
+
+    if (!settlement) throw new NotFoundException('Settlement not found');
+    if (settlement.payoutStatus === 'PAID') {
+      throw new BadRequestException('Settlement is already paid');
+    }
+
+    const updated = await this.prisma.sellerSettlement.update({
+      where: { id: settlementId },
+      data: {
+        payoutStatus: 'PAID',
+        payoutReference,
+        payoutDate: new Date(),
+      },
+      include: { seller: { select: { id: true, companyName: true } } },
+    });
+
+    this.logger.log(`Settlement ${settlementId} marked as paid by admin`);
+    return updated;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // TICKET MANAGEMENT
+  // ════════════════════════════════════════════════════════
+
+  async getAllTickets(query: AdminQueryTicketsDto) {
+    const { status, page = 1, limit = 20 } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.TicketWhereInput = {};
+    if (status) where.status = status;
+
+    const [data, total] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        select: {
+          id: true,
+          subject: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          user: { select: { id: true, phone: true, role: true } },
+          _count: { select: { messages: true } },
+        },
+        skip,
+        take: limit,
+      }),
+      this.prisma.ticket.count({ where }),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getTicketById(ticketId: string) {
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: ticketId },
+      include: {
+        user: { select: { id: true, phone: true, email: true, role: true } },
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            senderId: true,
+            message: true,
+            createdAt: true,
+            sender: { select: { id: true, phone: true, role: true } },
+          },
+        },
+      },
+    });
+
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket;
+  }
+
+  async adminReplyTicket(adminUserId: string, ticketId: string, dto: AdminReplyTicketDto) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const [message] = await this.prisma.$transaction([
+      this.prisma.message.create({
+        data: {
+          ticketId,
+          senderId: adminUserId,
+          message: dto.message,
+        },
+        select: { id: true, senderId: true, message: true, createdAt: true },
+      }),
+      this.prisma.ticket.update({
+        where: { id: ticketId },
+        data: { status: TicketStatus.IN_PROGRESS },
       }),
     ]);
 
-    return {
-      totalUsers,
-      totalBuyers,
-      totalSellers,
-      totalOrders,
-      totalRevenue: revenueResult._sum.totalAmount ?? 0,
-      pendingOrders,
-      pendingPayments,
-      pendingSettlements,
-    };
+    this.logger.log(`Admin replied to ticket ${ticketId}`);
+    return message;
+  }
+
+  async adminUpdateTicketStatus(ticketId: string, dto: AdminUpdateTicketStatusDto) {
+    const ticket = await this.prisma.ticket.findUnique({ where: { id: ticketId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { status: dto.status },
+      select: { id: true, subject: true, status: true, createdAt: true, updatedAt: true },
+    });
+
+    this.logger.log(`Ticket ${ticketId} status changed to ${dto.status} by admin`);
+    return updated;
   }
 }

@@ -60,30 +60,5 @@ export class SettlementsController {
     return { message: 'Payout history retrieved', data };
   }
 
-  // ─── ADMIN ROUTES (/api/admin/settlements/…) ─────────
-
-  @Get('admin/settlements')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'List all settlements (admin)' })
-  @ApiResponse({ status: 200, description: 'All settlements returned' })
-  async getAllSettlements(@Query('status') status?: string) {
-    const data = await this.settlementsService.getAllSettlements(status);
-    return { message: 'All settlements retrieved', data };
-  }
-
-  @Patch('admin/settlements/:id/mark-paid')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Mark settlement as paid (admin)' })
-  @ApiResponse({ status: 200, description: 'Settlement marked as paid' })
-  async markPaid(
-    @Param('id', ParseUUIDPipe) settlementId: string,
-    @Body() dto: MarkPaidDto,
-  ) {
-    const data = await this.settlementsService.markPaid(settlementId, dto);
-    return { message: 'Settlement marked as paid', data };
-  }
+  // NOTE: Admin settlement routes moved to AdminController (/api/admin/settlements/…)
 }
