@@ -73,7 +73,7 @@ Open **http://localhost:3000/api/docs** after starting the server.
 
 ### Postman Collection
 Import `docs/pharmabag-api.postman_collection.json` into Postman. The collection includes:
-- All 41 endpoints organized into 13 folders
+- All 62 endpoints organized into 16 folders
 - Pre-configured auth tokens as collection variables
 - Auto-save of `accessToken`, `productId`, `orderId`, etc. via test scripts
 - Example request bodies for every POST/PATCH endpoint
@@ -94,6 +94,8 @@ Import `docs/pharmabag-api.postman_collection.json` into Postman. The collection
 | **Reviews** | 2 | Buyer product reviews |
 | **Tickets** | 3 | Support ticket creation & messaging |
 | **Settlements** | 5 | Seller payout tracking, admin mark-paid |
+| **Blog (Admin)** | 15 | Blog posts CRUD, publish/unpublish, authors, categories |
+| **Blog (Public)** | 6 | Published posts, trending, by tag/slug, view count, sitemap |
 | **Admin** | 4 | Dashboard stats, user approval/rejection |
 | **Health** | 1 | DB + Redis health check |
 
@@ -148,9 +150,10 @@ src/
     ├── reviews/                     # Product reviews
     ├── tickets/                     # Support tickets
     ├── settlements/                 # Seller payouts
-    └── admin/                       # Admin dashboard & actions
+    ├── admin/                       # Admin dashboard & actions
+    └── blog/                        # SEO-optimized blog CMS
 prisma/
-├── schema.prisma                    # 23 models, 7 enums
+├── schema.prisma                    # 26 models, 8 enums
 ├── seed.ts                          # Categories + test users
 └── migrations/                      # Database migrations
 ```
@@ -164,6 +167,50 @@ npm run start:prod    # Start from dist/
 npx prisma studio     # Visual database browser
 npx prisma migrate dev  # Create new migration
 ```
+
+## Blog System (SEO-Optimized CMS)
+
+The blog module provides a full CMS for creating SEO-optimized content.
+
+### Admin APIs (`/api/admin/blogs` — requires ADMIN role)
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/admin/blogs` | Create blog post (auto-slug, reading time, HTML sanitization) |
+| `GET` | `/admin/blogs` | List all posts (pagination, filter by status/category/search) |
+| `GET` | `/admin/blogs/:id` | Get post by ID |
+| `PUT` | `/admin/blogs/:id` | Update post |
+| `PATCH` | `/admin/blogs/:id/status` | Publish / unpublish |
+| `DELETE` | `/admin/blogs/:id` | Delete post |
+| `POST` | `/admin/blogs/authors` | Create author |
+| `GET` | `/admin/blogs/authors` | List authors |
+| `GET` | `/admin/blogs/authors/:id` | Get author |
+| `PUT` | `/admin/blogs/authors/:id` | Update author |
+| `DELETE` | `/admin/blogs/authors/:id` | Delete author |
+| `POST` | `/admin/blogs/categories` | Create category |
+| `GET` | `/admin/blogs/categories` | List categories |
+| `PUT` | `/admin/blogs/categories/:id` | Update category |
+| `DELETE` | `/admin/blogs/categories/:id` | Delete category |
+
+### Public APIs (`/api/blogs` — no auth)
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/blogs` | Published posts (pagination, category/tag/search) |
+| `GET` | `/blogs/trending` | Trending posts by views |
+| `GET` | `/blogs/categories` | All blog categories |
+| `GET` | `/blogs/tag/:tag` | Posts by tag |
+| `GET` | `/blogs/:slug` | Single post by slug + JSON-LD structured data |
+| `POST` | `/blogs/:slug/view` | Increment view count |
+| `GET` | `/sitemap.xml` | Auto-generated XML sitemap |
+
+### Key Features
+- **SEO**: Slug-based URLs, meta fields (title, description, keywords, canonical, OG image), JSON-LD structured data (schema.org `BlogPosting`)
+- **Sitemap**: Auto-generated `sitemap.xml` from published posts
+- **XSS Prevention**: `sanitize-html` sanitizes all content (HTML & Editor.js JSON blocks)
+- **Caching**: Redis caching on public endpoints (5 min posts, 2 min lists) with automatic invalidation
+- **Reading Time**: Auto-calculated (`words / 200`)
+- **Content Format**: Supports Editor.js JSON or HTML/Markdown
 
 ## Rate Limiting
 
