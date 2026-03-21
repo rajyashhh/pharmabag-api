@@ -7,7 +7,7 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  const logger = new Logger('Bootstrap'); // Refreshing backend to pick up DTO changes
 
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
@@ -36,7 +36,7 @@ async function bootstrap() {
   const allowedOrigins = configService
     .get<string>(
       'CORS_ORIGINS',
-      'http://localhost:3000,http://localhost:5173,https://buyer.pharmabag.com,https://seller.pharmabag.com,https://admin.pharmabag.com',
+      'http://localhost:3000,http://localhost:3001,http://localhost:5173,https://buyer.pharmabag.com,https://seller.pharmabag.com,https://admin.pharmabag.com',
     )
     .split(',')
     .map((o) => o.trim());

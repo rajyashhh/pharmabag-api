@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -12,6 +13,7 @@ import { AnalyticsService } from './services/analytics.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { BulkCreateProductDto } from './dto/bulk-create-product.dto';
 
 @Injectable()
 export class ProductsService {
@@ -28,12 +30,44 @@ export class ProductsService {
   // SELLER ENDPOINTS
   // ──────────────────────────────────────────────
 
+  // ──────────────────────────────────────────────
+  // NORMALIZATION HELPERS
+  // ──────────────────────────────────────────────
+
+  private normalizeString(value: string | undefined | null): string {
+    return (value ?? '').trim();
+  }
+
+  private generateSlug(name: string): string {
+    return name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  }
+
+  private normalizeDto(dto: CreateProductDto): CreateProductDto {
+    return {
+      ...dto,
+      name: this.normalizeString(dto.name),
+      manufacturer: this.normalizeString(dto.manufacturer),
+      chemicalComposition: this.normalizeString(dto.chemicalComposition),
+      description: dto.description ? this.normalizeString(dto.description) : undefined,
+      slug: dto.slug
+        ? dto.slug.trim().toLowerCase()
+        : this.generateSlug(dto.name),
+      externalId: dto.externalId ? dto.externalId.trim() : undefined,
+    };
+  }
+
   /**
    * Create a product with default batch, search index, and analytics.
-   * sellerId is the SellerProfile.id (NOT User.id).
+   * Supports images, discount fields, externalId (idempotent upsert), and migration mode.
    */
   async create(userId: string, dto: CreateProductDto) {
-    // Resolve sellerId from userId
+    const normalized = this.normalizeDto(dto);
+
     const seller = await this.prisma.sellerProfile.findUnique({
       where: { userId },
     });
@@ -41,40 +75,79 @@ export class ProductsService {
       throw new ForbiddenException('Seller profile not found');
     }
 
-    // Validate category & sub-category exist
     const [category, subCategory] = await Promise.all([
-      this.prisma.category.findUnique({ where: { id: dto.categoryId } }),
-      this.prisma.subCategory.findUnique({ where: { id: dto.subCategoryId } }),
+      this.prisma.category.findUnique({ where: { id: normalized.categoryId } }),
+      this.prisma.subCategory.findUnique({ where: { id: normalized.subCategoryId } }),
     ]);
     if (!category) throw new NotFoundException('Category not found');
     if (!subCategory) throw new NotFoundException('Sub-category not found');
 
-    // Create product in a transaction
+    // Idempotent upsert: if externalId is provided and exists, update instead
+    if (normalized.externalId) {
+      const existing = await this.prisma.product.findUnique({
+        where: { externalId: normalized.externalId },
+      });
+      if (existing) {
+        this.logger.log(`Upsert: product with externalId ${normalized.externalId} exists, updating`);
+        return this.upsertExistingProduct(existing.id, seller.id, normalized, category, subCategory);
+      }
+    }
+
+    // Also check slug uniqueness for upsert
+    if (normalized.slug) {
+      const existingBySlug = await this.prisma.product.findUnique({
+        where: { slug: normalized.slug },
+      });
+      if (existingBySlug) {
+        if (normalized.externalId || normalized.isMigration) {
+          this.logger.log(`Upsert: product with slug ${normalized.slug} exists, updating`);
+          return this.upsertExistingProduct(existingBySlug.id, seller.id, normalized, category, subCategory);
+        }
+        throw new BadRequestException(`Product with slug "${normalized.slug}" already exists`);
+      }
+    }
+
+    const productData: Prisma.ProductCreateInput = {
+      seller: { connect: { id: seller.id } },
+      category: { connect: { id: normalized.categoryId } },
+      subCategory: { connect: { id: normalized.subCategoryId } },
+      name: normalized.name,
+      slug: normalized.slug,
+      externalId: normalized.externalId,
+      manufacturer: normalized.manufacturer,
+      chemicalComposition: normalized.chemicalComposition,
+      description: normalized.description,
+      mrp: normalized.mrp,
+      gstPercent: normalized.gstPercent,
+      minimumOrderQuantity: normalized.minimumOrderQuantity ?? 1,
+      maximumOrderQuantity: normalized.maximumOrderQuantity,
+      discountType: normalized.discountType,
+      discountMeta: normalized.discountMeta ?? undefined,
+    };
+
     const product = await this.prisma.product.create({
-      data: {
-        sellerId: seller.id,
-        categoryId: dto.categoryId,
-        subCategoryId: dto.subCategoryId,
-        name: dto.name,
-        manufacturer: dto.manufacturer,
-        chemicalComposition: dto.chemicalComposition,
-        description: dto.description,
-        mrp: dto.mrp,
-        gstPercent: dto.gstPercent,
-        minimumOrderQuantity: dto.minimumOrderQuantity ?? 1,
-        maximumOrderQuantity: dto.maximumOrderQuantity,
-      },
+      data: productData,
       include: {
         category: true,
         subCategory: true,
+        images: true,
       },
     });
 
-    // Phase-2+ hidden infrastructure — fire-and-forget
+    // Create images if provided
+    if (normalized.images && normalized.images.length > 0) {
+      await this.prisma.productImage.createMany({
+        data: normalized.images.map((url) => ({
+          productId: product.id,
+          url: url.trim(),
+        })),
+      });
+    }
+
     await this.inventoryService.createDefaultBatch(
       product.id,
-      dto.stock,
-      dto.expiryDate,
+      normalized.stock,
+      normalized.expiryDate,
     );
 
     this.searchIndexService.upsert(product.id, {
@@ -91,16 +164,124 @@ export class ProductsService {
       `Product created: ${product.id} by seller ${seller.id}`,
     );
 
-    // Return product with batch info for Phase-1 compatibility
     const batch = await this.prisma.productBatch.findFirst({
       where: { productId: product.id, batchNumber: 'DEFAULT' },
     });
 
+    const images = normalized.images?.length
+      ? await this.prisma.productImage.findMany({ where: { productId: product.id } })
+      : [];
+
     return {
       ...product,
+      images,
       stock: batch?.stock ?? 0,
       expiryDate: batch?.expiryDate ?? null,
     };
+  }
+
+  /**
+   * Upsert an existing product during migration/idempotent creation.
+   */
+  private async upsertExistingProduct(
+    productId: string,
+    sellerId: string,
+    dto: CreateProductDto,
+    category: { name: string },
+    subCategory: { name: string },
+  ) {
+    const updated = await this.prisma.product.update({
+      where: { id: productId },
+      data: {
+        sellerId,
+        categoryId: dto.categoryId,
+        subCategoryId: dto.subCategoryId,
+        name: dto.name,
+        slug: dto.slug,
+        manufacturer: dto.manufacturer,
+        chemicalComposition: dto.chemicalComposition,
+        description: dto.description,
+        mrp: dto.mrp,
+        gstPercent: dto.gstPercent,
+        minimumOrderQuantity: dto.minimumOrderQuantity ?? 1,
+        maximumOrderQuantity: dto.maximumOrderQuantity,
+        discountType: dto.discountType,
+        discountMeta: dto.discountMeta ?? undefined,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        category: true,
+        subCategory: true,
+      },
+    });
+
+    // Replace images
+    if (dto.images && dto.images.length > 0) {
+      await this.prisma.productImage.deleteMany({ where: { productId } });
+      await this.prisma.productImage.createMany({
+        data: dto.images.map((url) => ({ productId, url: url.trim() })),
+      });
+    }
+
+    await this.inventoryService.updateDefaultBatch(productId, dto.stock, dto.expiryDate);
+
+    this.searchIndexService.upsert(productId, {
+      name: updated.name,
+      manufacturer: updated.manufacturer,
+      chemicalComposition: updated.chemicalComposition,
+      categoryName: category.name,
+      subCategoryName: subCategory.name,
+    });
+
+    const batch = await this.prisma.productBatch.findFirst({
+      where: { productId, batchNumber: 'DEFAULT' },
+    });
+
+    const images = await this.prisma.productImage.findMany({ where: { productId } });
+
+    this.logger.log(`Product upserted: ${productId}`);
+
+    return {
+      ...updated,
+      images,
+      stock: batch?.stock ?? 0,
+      expiryDate: batch?.expiryDate ?? null,
+    };
+  }
+
+  /**
+   * Bulk create products for migration. Processes each product individually
+   * within a single flow, returning success/failure counts.
+   */
+  async bulkCreate(userId: string, dto: BulkCreateProductDto) {
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [] as { index: number; name: string; reason: string }[],
+      created: [] as string[],
+    };
+
+    for (let i = 0; i < dto.products.length; i++) {
+      try {
+        const product = await this.create(userId, dto.products[i]);
+        results.success++;
+        results.created.push(product.id);
+      } catch (error) {
+        results.failed++;
+        results.errors.push({
+          index: i,
+          name: dto.products[i]?.name ?? 'unknown',
+          reason: error instanceof Error ? error.message : 'Unknown error',
+        });
+        this.logger.warn(`Bulk create failed at index ${i}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    this.logger.log(
+      `Bulk product creation: ${results.success} success, ${results.failed} failed out of ${dto.products.length}`,
+    );
+    return results;
   }
 
   /**
@@ -157,14 +338,19 @@ export class ProductsService {
 
   /**
    * Update a product. Only the owning seller may update.
+   * Supports images array (replaces existing) and discount fields.
    */
   async update(userId: string, productId: string, dto: UpdateProductDto) {
     const product = await this.findOwnProduct(userId, productId);
 
-    // Separate batch fields from product fields
-    const { stock, expiryDate, ...productData } = dto;
+    const { stock, expiryDate, images, ...productData } = dto;
 
-    // Update product
+    // Trim strings
+    if (productData.name) productData.name = productData.name.trim();
+    if (productData.manufacturer) productData.manufacturer = productData.manufacturer.trim();
+    if (productData.chemicalComposition) productData.chemicalComposition = productData.chemicalComposition.trim();
+    if (productData.description) productData.description = productData.description.trim();
+
     const updated = await this.prisma.product.update({
       where: { id: product.id },
       data: productData,
@@ -174,7 +360,16 @@ export class ProductsService {
       },
     });
 
-    // Update default batch if stock/expiryDate changed
+    // Replace images if provided
+    if (images !== undefined) {
+      await this.prisma.productImage.deleteMany({ where: { productId: product.id } });
+      if (images.length > 0) {
+        await this.prisma.productImage.createMany({
+          data: images.map((url) => ({ productId: product.id, url: url.trim() })),
+        });
+      }
+    }
+
     if (stock !== undefined || expiryDate !== undefined) {
       await this.inventoryService.updateDefaultBatch(
         product.id,
@@ -183,7 +378,6 @@ export class ProductsService {
       );
     }
 
-    // Rebuild search index if relevant fields changed
     if (
       dto.name ||
       dto.manufacturer ||
@@ -202,12 +396,16 @@ export class ProductsService {
 
     this.logger.log(`Product updated: ${updated.id}`);
 
-    const batch = await this.prisma.productBatch.findFirst({
-      where: { productId: updated.id, batchNumber: 'DEFAULT' },
-    });
+    const [batch, productImages] = await Promise.all([
+      this.prisma.productBatch.findFirst({
+        where: { productId: updated.id, batchNumber: 'DEFAULT' },
+      }),
+      this.prisma.productImage.findMany({ where: { productId: updated.id } }),
+    ]);
 
     return {
       ...updated,
+      images: productImages,
       stock: batch?.stock ?? 0,
       expiryDate: batch?.expiryDate ?? null,
     };

@@ -77,12 +77,110 @@ export class SellersService {
       );
     }
 
+    const isFirstUpdate = existing.verificationStatus === 'UNVERIFIED';
+
     const profile = await this.prisma.sellerProfile.update({
       where: { userId },
-      data: dto,
+      data: {
+        ...dto,
+        ...(isFirstUpdate && { verificationStatus: 'PENDING' }),
+      },
     });
 
     this.logger.log(`Seller profile updated for user ${userId}`);
     return profile;
+  }
+
+  /**
+   * Get seller dashboard metrics.
+   */
+  async getDashboard(userId: string) {
+    const seller = await this.prisma.sellerProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Seller profile not found');
+    }
+
+    const [
+      totalProducts,
+      activeListings,
+      totalOrders,
+      pendingOrders,
+      totalRevenue,
+      pendingPayouts,
+      lowStockItems,
+    ] = await Promise.all([
+      this.prisma.product.count({ where: { sellerId: seller.id } }),
+      this.prisma.product.count({
+        where: { sellerId: seller.id, isActive: true, deletedAt: null },
+      }),
+      this.prisma.orderItem.count({ where: { sellerId: seller.id } }),
+      this.prisma.orderItem.count({
+        where: {
+          sellerId: seller.id,
+          order: {
+            orderStatus: { in: ['PLACED', 'ACCEPTED', 'SHIPPED', 'OUT_FOR_DELIVERY'] },
+          },
+        },
+      }),
+      this.prisma.orderItem.aggregate({
+        where: {
+          sellerId: seller.id,
+          order: { orderStatus: 'DELIVERED' },
+        },
+        _sum: { totalPrice: true },
+      }),
+      this.prisma.sellerSettlement.aggregate({
+        where: { sellerId: seller.id, payoutStatus: 'PENDING' },
+        _sum: { amount: true },
+      }),
+      this.prisma.productBatch.count({
+        where: { product: { sellerId: seller.id }, stock: { lt: 10 } },
+      }),
+    ]);
+
+    const orders = await this.prisma.orderItem.findMany({
+      where: { sellerId: seller.id },
+      take: 5,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        product: { select: { name: true } },
+        order: {
+          select: {
+            id: true,
+            orderStatus: true,
+            paymentStatus: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      stats: {
+        totalProducts,
+        activeListings,
+        totalOrders,
+        pendingOrders,
+        totalRevenue: totalRevenue._sum.totalPrice || 0,
+        pendingPayouts: pendingPayouts._sum.amount || 0,
+        avgRating: seller.rating,
+        lowStockItems,
+      },
+      overview: {
+        orders: orders.map((item) => ({
+          id: item.order.id,
+          productName: item.product.name,
+          quantity: item.quantity,
+          totalPrice: item.totalPrice,
+          status: item.order.orderStatus,
+          paymentStatus: item.order.paymentStatus,
+          createdAt: item.order.createdAt,
+        })),
+        revenueTrend: [], // Empty for now, would aggregate by day in production
+      },
+    };
   }
 }

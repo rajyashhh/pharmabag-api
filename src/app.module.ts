@@ -26,6 +26,8 @@ import { SettlementsModule } from './modules/settlements/settlements.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { BlogModule } from './modules/blog/blog.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { MigrationModule } from './modules/migration/migration.module';
 
 @Module({
   imports: [
@@ -44,7 +46,7 @@ import { BlogModule } from './modules/blog/blog.module';
         AWS_BUCKET: Joi.string().default('pharmabag-images'),
         AWS_REGION: Joi.string().default('ap-south-1'),
         CORS_ORIGINS: Joi.string().default(
-          'http://localhost:3000,http://localhost:5173',
+          'http://localhost:3000,http://localhost:3001,http://localhost:5173',
         ),
         PLATFORM_COMMISSION_RATE: Joi.number().default(0.05),
       }),
@@ -97,6 +99,8 @@ import { BlogModule } from './modules/blog/blog.module';
     ReviewsModule,
     TicketsModule,
     BlogModule,
+    CategoriesModule,
+    MigrationModule,
   ],
   providers: [
     // Apply throttler guard globally

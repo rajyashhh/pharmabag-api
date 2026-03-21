@@ -251,6 +251,43 @@ async function seedDemoSeller() {
 }
 
 // ──────────────────────────────────────────────
+// 4. SEED DEMO BUYER
+// ──────────────────────────────────────────────
+
+async function seedDemoBuyer() {
+  console.log('🛍️  Seeding demo buyer...');
+
+  const buyerPassword = await hashPassword('Buyer@123');
+
+  const buyerUser = await prisma.user.upsert({
+    where: { phone: '7777777777' },
+    update: {},
+    create: {
+      phone: '7777777777',
+      email: 'buyer@demopharma.com',
+      password: buyerPassword,
+      role: Role.BUYER,
+      status: UserStatus.APPROVED,
+      buyerProfile: {
+        create: {
+          legalName: 'Demo Pharmacy Store',
+          gstNumber: '07AAAAA0000A1Z5',
+          panNumber: 'AAAAA0000A',
+          drugLicenseNumber: 'DL-2026-BUYER',
+          drugLicenseUrl: 'https://placeholder.pharmabag.com/license/buyer-demo.pdf',
+          address: 'Shop No. 5, Medical Market, Chembur',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400071',
+        },
+      },
+    },
+    include: { buyerProfile: true },
+  });
+  console.log(`   ✅ Buyer: ${buyerUser.phone} — ${buyerUser.buyerProfile?.legalName}\n`);
+}
+
+// ──────────────────────────────────────────────
 // MAIN
 // ──────────────────────────────────────────────
 
@@ -260,6 +297,7 @@ async function main() {
   await seedCategories();
   await seedAdmin();
   await seedDemoSeller();
+  await seedDemoBuyer();
 
   console.log('────────────────────────────────────────');
   console.log('📦 Seed complete!');

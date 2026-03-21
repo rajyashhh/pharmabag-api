@@ -69,13 +69,13 @@ The server starts on **http://localhost:3000**.
 Open **http://localhost:3000/api/docs** after starting the server.
 
 - Click **Authorize** and paste a JWT token to test authenticated endpoints.
-- All 41 endpoints are documented with request/response schemas.
+- All endpoints are documented with request/response schemas.
 
 ### Postman Collection
 Import `docs/pharmabag-api.postman_collection.json` into Postman. The collection includes:
-- All 62 endpoints organized into 16 folders
+- All endpoints organized into 18 folders (including Categories & Migration)
 - Pre-configured auth tokens as collection variables
-- Auto-save of `accessToken`, `productId`, `orderId`, etc. via test scripts
+- Auto-save of `accessToken`, `productId`, `orderId`, `categoryId`, etc. via test scripts
 - Example request bodies for every POST/PATCH endpoint
 
 ## Modules
@@ -85,7 +85,8 @@ Import `docs/pharmabag-api.postman_collection.json` into Postman. The collection
 | **Auth** | 4 | Phone OTP send/verify, JWT refresh, get current user |
 | **Buyers** | 3 | Create/get/update buyer profile (KYC) |
 | **Sellers** | 3 | Create/get/update seller profile (KYC) |
-| **Products** | 7 | CRUD + search, categories, seller's own products |
+| **Categories (Admin)** | 12 | Category & subcategory CRUD, bulk seed, name→ID lookup maps |
+| **Products** | 8 | CRUD + search, categories, seller's own products, bulk create |
 | **Cart** | 5 | Add/get/update/remove items, clear cart |
 | **Orders** | 5 | Checkout from cart, list orders, update status |
 | **Payments** | 5 | Record payment, upload proof, admin confirm/reject |
@@ -141,7 +142,8 @@ src/
     ├── users/                       # User model (empty controller)
     ├── buyers/                      # Buyer profile & KYC
     ├── sellers/                     # Seller profile & KYC
-    ├── products/                    # Product catalog
+    ├── categories/                  # Admin category/subcategory CRUD + migration maps
+    ├── products/                    # Product catalog (+ bulk create, discount engine)
     ├── cart/                        # Shopping cart
     ├── orders/                      # Order management
     ├── payments/                    # Manual payment recording
@@ -153,7 +155,7 @@ src/
     ├── admin/                       # Admin dashboard & actions
     └── blog/                        # SEO-optimized blog CMS
 prisma/
-├── schema.prisma                    # 26 models, 8 enums
+├── schema.prisma                    # 26 models, 9 enums
 ├── seed.ts                          # Categories + test users
 └── migrations/                      # Database migrations
 ```
@@ -211,6 +213,66 @@ The blog module provides a full CMS for creating SEO-optimized content.
 - **Caching**: Redis caching on public endpoints (5 min posts, 2 min lists) with automatic invalidation
 - **Reading Time**: Auto-calculated (`words / 200`)
 - **Content Format**: Supports Editor.js JSON or HTML/Markdown
+
+## Categories & Migration System (Data Migration Toolkit)
+
+The categories module and enhanced products module provide a complete toolkit for migrating data from legacy systems (e.g., MongoDB) into the new PostgreSQL backend.
+
+### Admin Category APIs (`/api/admin` — requires ADMIN role)
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/admin/categories` | Create a category (auto-generates slug) |
+| `GET` | `/admin/categories` | List all categories with subcategories |
+| `GET` | `/admin/categories/map` | Get category `{ name → UUID }` lookup map |
+| `PATCH` | `/admin/categories/:id` | Update a category |
+| `DELETE` | `/admin/categories/:id` | Delete a category |
+| `POST` | `/admin/categories/bulk` | Bulk-create categories from array |
+| `POST` | `/admin/subcategories` | Create a subcategory |
+| `GET` | `/admin/subcategories` | List subcategories (filter by `categoryId`) |
+| `GET` | `/admin/subcategories/map` | Get subcategory `{ "Category::SubCat" → UUID }` lookup map |
+| `PATCH` | `/admin/subcategories/:id` | Update a subcategory |
+| `DELETE` | `/admin/subcategories/:id` | Delete a subcategory |
+| `POST` | `/admin/subcategories/bulk` | Bulk-create subcategories from array |
+
+### Product Bulk Create (`/api/products/bulk` — requires SELLER role)
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/products/bulk` | Bulk-create products with per-item error handling |
+
+### Migration & Discount Features
+
+- **Idempotent creation**: Products with an `externalId` (legacy MongoDB ObjectId) are upserted — re-running a migration script won't create duplicates
+- **Slug-based dedup**: If `externalId` isn't provided, the auto-generated `slug` is used as a secondary dedup key
+- **Migration mode**: Set `isMigration: true` to relax non-critical validations (e.g., image URL format) during bulk import
+- **Product images**: Supply an array of `images` URLs on create/update — stored in `ProductImage` table
+- **Discount engine**: 5 discount types stored as `discountType` enum + flexible `discountMeta` JSON:
+  - `PTR_DISCOUNT` — Price-to-retailer discount (e.g., `{ "ptrPercent": 15 }`)
+  - `SAME_PRODUCT_BONUS` — Buy X get Y free (e.g., `{ "buy": 10, "get": 2 }`)
+  - `PTR_PLUS_SAME_PRODUCT_BONUS` — Combined PTR + bonus
+  - `DIFFERENT_PRODUCT_BONUS` — Buy product A, get product B free
+  - `PTR_PLUS_DIFFERENT_PRODUCT_BONUS` — Combined PTR + different product bonus
+- **Data normalization**: Strings are trimmed, slugs are lowercased, `externalId` is trimmed on ingest
+- **Bulk results**: Returns `{ success, failed, errors[], created[] }` with per-item error details
+
+### Typical Migration Workflow
+
+```bash
+# 1. Seed categories & subcategories
+curl -X POST /api/admin/categories/bulk \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d '{"categories": [{"name": "Medicines"}, {"name": "Devices"}]}'
+
+# 2. Get lookup maps
+CAT_MAP=$(curl /api/admin/categories/map -H "Authorization: Bearer $ADMIN_TOKEN")
+SUB_MAP=$(curl /api/admin/subcategories/map -H "Authorization: Bearer $ADMIN_TOKEN")
+
+# 3. Bulk-create products (idempotent — safe to re-run)
+curl -X POST /api/products/bulk \
+  -H "Authorization: Bearer $SELLER_TOKEN" \
+  -d '{"products": [{"name": "Paracetamol 500mg", "externalId": "507f1f77bcf86cd799439011", "isMigration": true, ...}]}'
+```
 
 ## Rate Limiting
 

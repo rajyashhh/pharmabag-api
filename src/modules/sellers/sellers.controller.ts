@@ -59,4 +59,13 @@ export class SellersController {
     const data = await this.sellersService.updateProfile(userId, dto);
     return { message: 'Seller profile updated successfully', data };
   }
+
+  @Get('dashboard')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get seller dashboard metrics' })
+  @ApiResponse({ status: 200, description: 'Seller dashboard metrics returned' })
+  async getDashboard(@CurrentUser('id') userId: string) {
+    const data = await this.sellersService.getDashboard(userId);
+    return { message: 'Seller dashboard retrieved successfully', data };
+  }
 }

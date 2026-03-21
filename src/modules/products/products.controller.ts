@@ -21,6 +21,7 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
+import { BulkCreateProductDto } from './dto/bulk-create-product.dto';
 
 @ApiTags('Products')
 @Controller('products')
@@ -77,6 +78,21 @@ export class ProductsController {
   ) {
     const data = await this.productsService.create(userId, dto);
     return { message: 'Product created successfully', data };
+  }
+
+  @Post('bulk')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SELLER)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Bulk-create products (seller only, migration-friendly)' })
+  @ApiResponse({ status: 201, description: 'Bulk creation results returned' })
+  async bulkCreate(
+    @CurrentUser('id') userId: string,
+    @Body() dto: BulkCreateProductDto,
+  ) {
+    const data = await this.productsService.bulkCreate(userId, dto);
+    return { message: 'Bulk product creation completed', data };
   }
 
   @Get('seller/own')

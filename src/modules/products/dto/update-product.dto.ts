@@ -5,10 +5,15 @@ import {
   IsInt,
   IsBoolean,
   IsDateString,
+  IsEnum,
+  IsArray,
+  IsUrl,
+  IsObject,
   Min,
   MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { DiscountType } from '@prisma/client';
 
 export class UpdateProductDto {
   @ApiPropertyOptional({ example: 'Paracetamol 500mg', maxLength: 255 })
@@ -72,7 +77,6 @@ export class UpdateProductDto {
   @IsOptional()
   isActive?: boolean;
 
-  // Phase-1: Update default batch stock & expiry
   @ApiPropertyOptional({ example: 500, description: 'Updated stock count' })
   @IsInt()
   @Min(0)
@@ -83,4 +87,33 @@ export class UpdateProductDto {
   @IsDateString()
   @IsOptional()
   expiryDate?: string;
+
+  // ── Image Support ──────────────────────────────
+  @ApiPropertyOptional({
+    example: ['https://example.com/img1.jpg'],
+    description: 'Array of product image URLs (replaces existing images)',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsUrl({}, { each: true, message: 'Each image must be a valid URL' })
+  @IsOptional()
+  images?: string[];
+
+  // ── Discount Engine ────────────────────────────
+  @ApiPropertyOptional({
+    enum: DiscountType,
+    example: 'SAME_PRODUCT_BONUS',
+    description: 'Type of discount applied to this product',
+  })
+  @IsEnum(DiscountType)
+  @IsOptional()
+  discountType?: DiscountType;
+
+  @ApiPropertyOptional({
+    example: { buy: 10, get: 2 },
+    description: 'JSON metadata for the discount',
+  })
+  @IsObject()
+  @IsOptional()
+  discountMeta?: Record<string, any>;
 }

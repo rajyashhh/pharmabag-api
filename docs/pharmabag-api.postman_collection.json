@@ -21,7 +21,9 @@
     { "key": "blogPostId", "value": "" },
     { "key": "blogAuthorId", "value": "" },
     { "key": "blogCategoryId", "value": "" },
-    { "key": "blogSlug", "value": "" }
+    { "key": "blogSlug", "value": "" },
+    { "key": "categoryId", "value": "" },
+    { "key": "subCategoryId", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -188,6 +190,177 @@
       ]
     },
     {
+      "name": "Categories (Admin)",
+      "description": "Admin-only category & subcategory management. Includes CRUD, bulk seeding, and name→UUID lookup maps for migration scripts.",
+      "item": [
+        {
+          "name": "Categories",
+          "item": [
+            {
+              "name": "Create Category",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data.id) pm.collectionVariables.set('categoryId', res.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/categories",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Medicines\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List All Categories",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/categories",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Category Map (name→UUID)",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/categories/map",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Update Category",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/categories/{{categoryId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Pharmaceutical Medicines\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Category",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/categories/{{categoryId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Bulk Create Categories",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/categories/bulk",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"categories\": [\n    { \"name\": \"Medicines\" },\n    { \"name\": \"Medical Devices\" },\n    { \"name\": \"Ayurvedic\" },\n    { \"name\": \"Surgical\" },\n    { \"name\": \"OTC\" }\n  ]\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subcategories",
+          "item": [
+            {
+              "name": "Create Subcategory",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const res = pm.response.json();",
+                      "if (res.data && res.data.id) pm.collectionVariables.set('subCategoryId', res.data.id);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/subcategories",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Tablets\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "List Subcategories",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{baseUrl}}/admin/subcategories?categoryId={{categoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["admin", "subcategories"],
+                  "query": [
+                    { "key": "categoryId", "value": "{{categoryId}}" }
+                  ]
+                },
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Get Subcategory Map (Category::SubCat→UUID)",
+              "request": {
+                "method": "GET",
+                "url": "{{baseUrl}}/admin/subcategories/map",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Update Subcategory",
+              "request": {
+                "method": "PATCH",
+                "url": "{{baseUrl}}/admin/subcategories/{{subCategoryId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Capsules\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Subcategory",
+              "request": {
+                "method": "DELETE",
+                "url": "{{baseUrl}}/admin/subcategories/{{subCategoryId}}",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] }
+              }
+            },
+            {
+              "name": "Bulk Create Subcategories",
+              "request": {
+                "method": "POST",
+                "url": "{{baseUrl}}/admin/subcategories/bulk",
+                "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}" }] },
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subcategories\": [\n    { \"name\": \"Tablets\", \"categoryId\": \"{{categoryId}}\" },\n    { \"name\": \"Syrups\", \"categoryId\": \"{{categoryId}}\" },\n    { \"name\": \"Injections\", \"categoryId\": \"{{categoryId}}\" }\n  ]\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Products",
       "item": [
         {
@@ -248,7 +421,20 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Paracetamol 500mg\",\n  \"categoryId\": \"uuid-of-category\",\n  \"subCategoryId\": \"uuid-of-subcategory\",\n  \"manufacturer\": \"Cipla Ltd\",\n  \"chemicalComposition\": \"Paracetamol IP 500mg\",\n  \"description\": \"Analgesic and antipyretic tablet\",\n  \"mrp\": 25.50,\n  \"gstPercent\": 12,\n  \"minimumOrderQuantity\": 10,\n  \"maximumOrderQuantity\": 1000,\n  \"stock\": 500,\n  \"expiryDate\": \"2026-12-31\"\n}"
+              "raw": "{\n  \"name\": \"Paracetamol 500mg\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"subCategoryId\": \"{{subCategoryId}}\",\n  \"manufacturer\": \"Cipla Ltd\",\n  \"chemicalComposition\": \"Paracetamol IP 500mg\",\n  \"description\": \"Analgesic and antipyretic tablet\",\n  \"mrp\": 25.50,\n  \"gstPercent\": 12,\n  \"minimumOrderQuantity\": 10,\n  \"maximumOrderQuantity\": 1000,\n  \"stock\": 500,\n  \"expiryDate\": \"2026-12-31\",\n  \"images\": [\"https://example.com/paracetamol-front.jpg\", \"https://example.com/paracetamol-back.jpg\"],\n  \"discountType\": \"SAME_PRODUCT_BONUS\",\n  \"discountMeta\": { \"buy\": 10, \"get\": 2 }\n}"
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Products (Seller)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/products/bulk",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{sellerToken}}" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"products\": [\n    {\n      \"name\": \"Amoxicillin 500mg\",\n      \"categoryId\": \"{{categoryId}}\",\n      \"subCategoryId\": \"{{subCategoryId}}\",\n      \"manufacturer\": \"Cipla Ltd\",\n      \"chemicalComposition\": \"Amoxicillin Trihydrate IP 500mg\",\n      \"mrp\": 85.00,\n      \"gstPercent\": 12,\n      \"stock\": 200,\n      \"expiryDate\": \"2027-06-30\",\n      \"externalId\": \"507f1f77bcf86cd799439011\",\n      \"isMigration\": true,\n      \"discountType\": \"PTR_DISCOUNT\",\n      \"discountMeta\": { \"ptrPercent\": 15 }\n    },\n    {\n      \"name\": \"Azithromycin 250mg\",\n      \"categoryId\": \"{{categoryId}}\",\n      \"subCategoryId\": \"{{subCategoryId}}\",\n      \"manufacturer\": \"Sun Pharma\",\n      \"chemicalComposition\": \"Azithromycin Dihydrate IP 250mg\",\n      \"mrp\": 120.00,\n      \"gstPercent\": 12,\n      \"stock\": 150,\n      \"expiryDate\": \"2027-03-31\",\n      \"externalId\": \"507f1f77bcf86cd799439012\",\n      \"isMigration\": true\n    }\n  ]\n}"
             }
           }
         },
@@ -277,7 +463,7 @@
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Paracetamol 650mg\",\n  \"mrp\": 30.00,\n  \"stock\": 450\n}"
+              "raw": "{\n  \"name\": \"Paracetamol 650mg\",\n  \"mrp\": 30.00,\n  \"stock\": 450,\n  \"images\": [\"https://example.com/paracetamol-650-front.jpg\"],\n  \"discountType\": \"PTR_DISCOUNT\",\n  \"discountMeta\": { \"ptrPercent\": 10 }\n}"
             }
           }
         },
