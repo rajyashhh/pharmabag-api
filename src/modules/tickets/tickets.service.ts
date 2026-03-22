@@ -69,6 +69,18 @@ export class TicketsService {
             role: true,
           },
         },
+        messages: {
+          select: {
+            id: true,
+            senderId: true,
+            message: true,
+            createdAt: true,
+            sender: {
+              select: { id: true, role: true },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         _count: { select: { messages: true } },
       },
     });

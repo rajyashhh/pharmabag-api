@@ -822,4 +822,54 @@ export class AdminService {
     this.logger.log(`Ticket ${ticketId} status changed to ${dto.status} by admin`);
     return updated;
   }
+
+  // ════════════════════════════════════════════════════════
+  // NOTIFICATIONS
+  // ════════════════════════════════════════════════════════
+
+  async adminBroadcastNotification(adminUserId: string, dto: import('./dto/admin-broadcast-notification.dto').AdminBroadcastNotificationDto) {
+    const { target, message } = dto;
+    let whereClause: Prisma.UserWhereInput = { status: 'APPROVED' };
+
+    if (target === 'BUYER') {
+      whereClause.role = 'BUYER';
+    } else if (target === 'SELLER') {
+      whereClause.role = 'SELLER';
+    }
+
+    // Fetch matching users
+    const users = await this.prisma.user.findMany({
+      where: whereClause,
+      select: { id: true, email: true, phone: true }
+    });
+
+    if (users.length === 0) {
+      throw new BadRequestException('No active users found for the selected target audience.');
+    }
+
+    // Create notifications in bulk
+    const notificationsData = users.map(user => ({
+      userId: user.id,
+      message,
+    }));
+
+    await this.prisma.notification.createMany({
+      data: notificationsData,
+    });
+
+    // Simulate email/SMS triggers
+    this.logger.log(`Broadcast Notification: Sent to ${users.length} users (Target: ${target}).`);
+    users.forEach(u => {
+      if (u.email) {
+        // In a real app, this would push to an email queue (SQS, RabbitMQ, Bull)
+        this.logger.debug(`[MOCK EMAIL] Sending notification to ${u.email}: ${message}`);
+      }
+    });
+
+    return {
+      success: true,
+      deliveredCount: users.length,
+      target
+    };
+  }
 }

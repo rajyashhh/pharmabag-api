@@ -310,7 +310,7 @@ export class AdminController {
     @Body() dto: AdminReplyTicketDto,
     @CurrentUser() user: any,
   ) {
-    const data = await this.adminService.adminReplyTicket(user.userId, id, dto);
+    const data = await this.adminService.adminReplyTicket(user.id, id, dto);
     return { message: 'Reply sent successfully', data };
   }
 
@@ -325,5 +325,21 @@ export class AdminController {
   ) {
     const data = await this.adminService.adminUpdateTicketStatus(id, dto);
     return { message: 'Ticket status updated successfully', data };
+  }
+
+  // ═══════════════════════════════════════════════════
+  // NOTIFICATIONS
+  // ═══════════════════════════════════════════════════
+
+  @Post('notifications/broadcast')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Broadcast a notification to all, buyers, or sellers' })
+  @ApiResponse({ status: 200, description: 'Notification sent successfully' })
+  async broadcastNotification(
+    @Body() dto: import('./dto/admin-broadcast-notification.dto').AdminBroadcastNotificationDto,
+    @CurrentUser() user: any,
+  ) {
+    const data = await this.adminService.adminBroadcastNotification(user.id, dto);
+    return { message: 'Broadcast initiated successfully', data };
   }
 }

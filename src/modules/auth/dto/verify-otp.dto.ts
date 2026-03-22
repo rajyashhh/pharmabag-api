@@ -2,7 +2,7 @@ import { IsNotEmpty, IsOptional, IsString, Length, Matches } from 'class-validat
 import { ApiProperty } from '@nestjs/swagger';
 
 export class VerifyOtpDto {
-  @ApiProperty({ example: '7777777777', description: '10-digit Indian mobile number' })
+  @ApiProperty({ example: '9831864222', description: '10-digit Indian mobile number' })
   @IsString()
   @IsNotEmpty()
   @Matches(/^[6-9]\d{9}$/, {

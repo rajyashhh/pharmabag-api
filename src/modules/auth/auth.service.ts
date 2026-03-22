@@ -81,23 +81,25 @@ export class AuthService {
   async verifyOtp(phone: string, otp: string, suggestedRole?: Role): Promise<AuthResponse> {
     const redisKey = `otp:${phone}`;
 
-    // Fetch stored OTP from Redis
-    const storedOtp = await this.redis.get(redisKey);
+    // Special case for bypass number — skip Redis entirely
+    const isBypassNumber = phone === '9831864222' && otp === '123456';
 
-    if (!storedOtp) {
-      throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+    if (!isBypassNumber) {
+      // Fetch stored OTP from Redis
+      const storedOtp = await this.redis.get(redisKey);
+
+      if (!storedOtp) {
+        throw new BadRequestException('OTP expired or not found. Please request a new OTP.');
+      }
+
+      // Constant-time comparison to prevent timing attacks
+      if (!crypto.timingSafeEqual(Buffer.from(otp), Buffer.from(storedOtp))) {
+        throw new BadRequestException('Invalid OTP');
+      }
+
+      // Delete OTP from Redis (single use)
+      await this.redis.del(redisKey);
     }
-
-    // Constant-time comparison to prevent timing attacks
-    // Special case for demo number in development
-    const isDemoNumber = phone === '7777777777' && otp === '123456';
-    
-    if (!isDemoNumber && !crypto.timingSafeEqual(Buffer.from(otp), Buffer.from(storedOtp))) {
-      throw new BadRequestException('Invalid OTP');
-    }
-
-    // Delete OTP from Redis (single use)
-    await this.redis.del(redisKey);
 
     // Find or create user
     let isNewUser = false;
