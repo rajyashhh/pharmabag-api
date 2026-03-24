@@ -91,8 +91,8 @@ async function bootstrap() {
 
   const port = configService.get<number>('PORT') || 3000;
 
-  await app.listen(port);
-  logger.log(`🚀 PharmaBag API is running on: http://localhost:${port}/api`);
-  logger.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 PharmaBag API is running on: http://0.0.0.0:${port}/api`);
+  logger.log(`📚 Swagger docs available at: http://0.0.0.0:${port}/api/docs`);
 }
 bootstrap();
