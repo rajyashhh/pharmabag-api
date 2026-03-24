@@ -79,6 +79,13 @@ export class SellersService {
 
     const isFirstUpdate = existing.verificationStatus === 'UNVERIFIED';
 
+    if (isFirstUpdate) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { status: 'PENDING' },
+      });
+    }
+
     const profile = await this.prisma.sellerProfile.update({
       where: { userId },
       data: {

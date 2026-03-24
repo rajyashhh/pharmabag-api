@@ -133,7 +133,7 @@ export class AuthService {
           phone,
           password: randomPassword,
           role: suggestedRole || Role.BUYER,
-          status: UserStatus.PENDING,
+          status: UserStatus.NEW,
         },
         select: {
           id: true,
@@ -241,7 +241,11 @@ export class AuthService {
       throw new UnauthorizedException('User not found');
     }
 
-    return user;
+    // Normalize response shape for single source of truth
+    return {
+      ...user,
+      onboardingCompleted: user.status !== UserStatus.NEW,
+    };
   }
 
   // ─── REFRESH TOKEN ─────────────────────────────────
