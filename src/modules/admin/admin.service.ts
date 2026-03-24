@@ -1073,4 +1073,42 @@ export class AdminService {
 
     return { success: true, message: 'Admin deleted successfully' };
   }
+
+  // ════════════════════════════════════════════════════════
+  // ANALYTICS
+  // ════════════════════════════════════════════════════════
+
+  async getRevenueChart(period: string = '30d') {
+    return [
+      { name: 'W1', revenue: 0 },
+      { name: 'W2', revenue: 0 },
+      { name: 'W3', revenue: 0 },
+      { name: 'W4', revenue: 0 },
+    ];
+  }
+
+  async getOrdersChart(period: string = '30d') {
+    return [
+      { name: 'W1', orders: 0 },
+      { name: 'W2', orders: 0 },
+      { name: 'W3', orders: 0 },
+      { name: 'W4', orders: 0 },
+    ];
+  }
+
+  async getTopProducts(limit: number = 10) {
+    return this.prisma.product.findMany({
+      take: Number(limit) || 10,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, name: true, mrp: true }
+    });
+  }
+
+  async getTopSellers(limit: number = 10) {
+    return this.prisma.sellerProfile.findMany({
+      take: Number(limit) || 10,
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, companyName: true, rating: true, user: { select: { phone: true } } }
+    });
+  }
 }

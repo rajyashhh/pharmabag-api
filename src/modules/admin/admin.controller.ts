@@ -397,4 +397,41 @@ export class AdminController {
     const data = await this.adminService.deleteAdmin(id);
     return { message: 'Admin deleted successfully', data };
   }
+
+  // ═══════════════════════════════════════════════════
+  // ANALYTICS
+  // ═══════════════════════════════════════════════════
+
+  @Get('analytics/revenue')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get revenue chart metric' })
+  async getRevenueChart(@Query('period') period: string) {
+    const data = await this.adminService.getRevenueChart(period);
+    return { message: 'Revenue chart retrieved', data };
+  }
+
+  @Get('analytics/orders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get orders chart metric' })
+  async getOrdersChart(@Query('period') period: string) {
+    const data = await this.adminService.getOrdersChart(period);
+    return { message: 'Orders chart retrieved', data };
+  }
+
+  @Get('analytics/top-products')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get top products' })
+  async getTopProducts(@Query('limit') limit: number) {
+    const data = await this.adminService.getTopProducts(limit);
+    return { message: 'Top products retrieved', data };
+  }
+
+  @Get('analytics/top-sellers')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get top sellers' })
+  async getTopSellers(@Query('limit') limit: number) {
+    const data = await this.adminService.getTopSellers(limit);
+    return { message: 'Top sellers retrieved', data };
+  }
 }
+
