@@ -872,4 +872,200 @@ export class AdminService {
       target
     };
   }
+
+  // ════════════════════════════════════════════════════════
+  // ADMIN MANAGEMENT (Role-Based Access)
+  // ════════════════════════════════════════════════════════
+
+  /**
+   * Get all admins with their profiles and permissions
+   */
+  async getAdmins() {
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'ADMIN' },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        adminProfile: {
+          select: {
+            id: true,
+            displayName: true,
+            department: true,
+            permissions: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return admins.map(admin => ({
+      id: admin.id,
+      phone: admin.phone,
+      email: admin.email,
+      status: admin.status,
+      name: admin.adminProfile?.displayName || 'Unknown',
+      department: admin.adminProfile?.department,
+      permissions: admin.adminProfile?.permissions || '',
+      createdAt: admin.createdAt,
+    }));
+  }
+
+  /**
+   * Get admin by ID with profile
+   */
+  async getAdminById(adminId: string) {
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminId },
+      select: {
+        id: true,
+        phone: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        adminProfile: {
+          select: {
+            id: true,
+            displayName: true,
+            department: true,
+            permissions: true,
+          },
+        },
+      },
+    });
+
+    if (!admin || admin.id === null) {
+      throw new NotFoundException('Admin not found');
+    }
+
+    return {
+      id: admin.id,
+      phone: admin.phone,
+      email: admin.email,
+      status: admin.status,
+      name: admin.adminProfile?.displayName || 'Unknown',
+      department: admin.adminProfile?.department,
+      permissions: admin.adminProfile?.permissions || '',
+      createdAt: admin.createdAt,
+    };
+  }
+
+  /**
+   * Create a new admin with role-based permissions
+   */
+  async createAdmin(createAdminDto: any) {
+    const { phone, name, department, permissions } = createAdminDto;
+
+    // Check if admin already exists
+    const existingAdmin = await this.prisma.user.findFirst({
+      where: { phone, role: 'ADMIN' },
+    });
+
+    if (existingAdmin) {
+      throw new BadRequestException('Admin with this phone already exists');
+    }
+
+    // Create admin user
+    const adminUser = await this.prisma.user.create({
+      data: {
+        phone,
+        email: `admin+${phone}@pharmabag.in`,
+        password: '', // Will be set on first login via OTP
+        role: 'ADMIN',
+        status: 'APPROVED',
+        adminProfile: {
+          create: {
+            displayName: name,
+            department: department || '',
+            permissions: permissions || '',
+          },
+        },
+      },
+      include: { adminProfile: true },
+    });
+
+    return {
+      id: adminUser.id,
+      phone: adminUser.phone,
+      email: adminUser.email,
+      name: adminUser.adminProfile?.displayName,
+      department: adminUser.adminProfile?.department,
+      permissions: adminUser.adminProfile?.permissions || '',
+      createdAt: adminUser.createdAt,
+    };
+  }
+
+  /**
+   * Update admin profile and permissions
+   */
+  async updateAdmin(adminId: string, updateAdminDto: any) {
+    const { name, department, permissions } = updateAdminDto;
+
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminId },
+      include: { adminProfile: true },
+    });
+
+    if (!admin || admin.role !== 'ADMIN') {
+      throw new NotFoundException('Admin not found');
+    }
+
+    // Update admin profile
+    const updatedAdmin = await this.prisma.adminProfile.update({
+      where: { userId: adminId },
+      data: {
+        ...(name && { displayName: name }),
+        ...(department !== undefined && { department }),
+        ...(permissions !== undefined && { permissions }),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            phone: true,
+            email: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      id: updatedAdmin.userId,
+      phone: updatedAdmin.user.phone,
+      email: updatedAdmin.user.email,
+      name: updatedAdmin.displayName,
+      department: updatedAdmin.department,
+      permissions: updatedAdmin.permissions || '',
+      createdAt: updatedAdmin.user.createdAt,
+    };
+  }
+
+  /**
+   * Delete admin (soft delete by status + remove from admin role)
+   */
+  async deleteAdmin(adminId: string) {
+    const admin = await this.prisma.user.findUnique({
+      where: { id: adminId },
+    });
+
+    if (!admin || admin.role !== 'ADMIN') {
+      throw new NotFoundException('Admin not found');
+    }
+
+    // Delete admin profile
+    await this.prisma.adminProfile.delete({
+      where: { userId: adminId },
+    });
+
+    // Remove admin user or just mark as blocked
+    await this.prisma.user.update({
+      where: { id: adminId },
+      data: { status: 'BLOCKED' },
+    });
+
+    return { success: true, message: 'Admin deleted successfully' };
+  }
 }

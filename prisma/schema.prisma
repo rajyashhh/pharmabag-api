@@ -279,11 +279,13 @@ model AdminProfile {
   userId      String   @unique
   displayName String
   department  String?
+  permissions String   @default("")  // Space-separated permission codes: "1 3 5 7 x" where x=super-admin
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("admin_profiles")
 }
 

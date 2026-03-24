@@ -342,4 +342,59 @@ export class AdminController {
     const data = await this.adminService.adminBroadcastNotification(user.id, dto);
     return { message: 'Broadcast initiated successfully', data };
   }
+
+  // ═══════════════════════════════════════════════════
+  // ADMIN MANAGEMENT (Role-Based Access Control)
+  // ═══════════════════════════════════════════════════
+
+  @Get('admins')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get all admins with permissions' })
+  @ApiResponse({ status: 200, description: 'Admins list returned' })
+  async getAdmins() {
+    const data = await this.adminService.getAdmins();
+    return { message: 'Admins retrieved successfully', data };
+  }
+
+  @Get('admins/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get admin by ID' })
+  @ApiResponse({ status: 200, description: 'Admin details returned' })
+  @ApiResponse({ status: 404, description: 'Admin not found' })
+  async getAdminById(@Param('id', ParseUUIDPipe) id: string) {
+    const data = await this.adminService.getAdminById(id);
+    return { message: 'Admin retrieved successfully', data };
+  }
+
+  @Post('admins')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new admin with role-based permissions' })
+  @ApiResponse({ status: 201, description: 'Admin created successfully' })
+  async createAdmin(@Body() dto: import('./dto/create-admin.dto').CreateAdminDto) {
+    const data = await this.adminService.createAdmin(dto);
+    return { message: 'Admin created successfully', data };
+  }
+
+  @Patch('admins/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update admin details and permissions' })
+  @ApiResponse({ status: 200, description: 'Admin updated successfully' })
+  @ApiResponse({ status: 404, description: 'Admin not found' })
+  async updateAdmin(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: import('./dto/update-admin.dto').UpdateAdminDto,
+  ) {
+    const data = await this.adminService.updateAdmin(id, dto);
+    return { message: 'Admin updated successfully', data };
+  }
+
+  @Delete('admins/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete an admin' })
+  @ApiResponse({ status: 200, description: 'Admin deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Admin not found' })
+  async deleteAdmin(@Param('id', ParseUUIDPipe) id: string) {
+    const data = await this.adminService.deleteAdmin(id);
+    return { message: 'Admin deleted successfully', data };
+  }
 }
