@@ -2,7 +2,10 @@ import {
   IsString,
   IsOptional,
   IsNumber,
+  IsObject,
+  IsArray,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -15,6 +18,7 @@ export class UpdateBuyerProfileDto {
   @ApiPropertyOptional({ example: '27AABCU9603R1ZM' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.gstNumber)
   @Matches(/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/, {
     message: 'gstNumber must be a valid 15-character GSTIN',
   })
@@ -23,6 +27,7 @@ export class UpdateBuyerProfileDto {
   @ApiPropertyOptional({ example: 'ABCDE1234F' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.panNumber)
   @Matches(/^[A-Z]{5}\d{4}[A-Z]{1}$/, {
     message: 'panNumber must be a valid 10-character PAN',
   })
@@ -33,15 +38,40 @@ export class UpdateBuyerProfileDto {
   @IsString()
   drugLicenseNumber?: string;
 
-  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/pharmabag-images/drug-license.pdf' })
+  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/drug-license.pdf' })
   @IsOptional()
   @IsString()
   drugLicenseUrl?: string;
 
-  @ApiPropertyOptional({ example: '123 MG Road' })
+  @ApiPropertyOptional({ description: 'Structured address object' })
+  @IsOptional()
+  @IsObject()
+  address?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Drug licence details array' })
+  @IsOptional()
+  @IsArray()
+  licence?: Record<string, any>[];
+
+  @ApiPropertyOptional({ description: 'Bank account details' })
+  @IsOptional()
+  @IsObject()
+  bankAccount?: Record<string, any>;
+
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  address?: string;
+  cancelCheck?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  document?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  inviteCode?: string;
 
   @ApiPropertyOptional({ example: 'Mumbai' })
   @IsOptional()
@@ -56,6 +86,7 @@ export class UpdateBuyerProfileDto {
   @ApiPropertyOptional({ example: '400001' })
   @IsOptional()
   @IsString()
+  @ValidateIf((o) => !!o.pincode)
   @Matches(/^\d{6}$/, { message: 'pincode must be a valid 6-digit code' })
   pincode?: string;
 
@@ -68,4 +99,9 @@ export class UpdateBuyerProfileDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Pre-verified IDFY response' })
+  @IsOptional()
+  @IsObject()
+  gstPanResponse?: Record<string, any>;
 }

@@ -99,6 +99,12 @@ enum BlogStatus {
   PUBLISHED
 }
 
+enum CreditTier {
+  PREPAID
+  EMI
+  FULLCREDIT
+}
+
 enum MigrationEntityType {
   USER
   ORDER
@@ -160,27 +166,37 @@ model User {
 // ──────────────────────────────────────────────
 
 model BuyerProfile {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  legalName         String
-  gstNumber         String
-  panNumber         String
-  drugLicenseNumber String
-  drugLicenseUrl    String // S3 URL to uploaded license document
-  address           String
-  city              String
-  state             String
-  pincode           String
-  latitude          Float? // For nearby seller search
-  longitude         Float? // For nearby seller search
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  legalName          String
+  gstNumber          String?            // Optional — either GST or PAN required
+  panNumber          String?            // Optional — either GST or PAN required
+  drugLicenseNumber  String?
+  drugLicenseUrl     String?            // S3 URL to uploaded license document
+  address            Json?              // { street1, street2?, city, state, pincode }
+  city               String?
+  state              String?
+  pincode            String?
+  latitude           Float?             // For nearby seller search
+  longitude          Float?             // For nearby seller search
+  gstPanResponse     Json?              // IDFY verification response: { status, legalName, gstNumber, message, ... }
+  licence            Json?              // [{ type: "DL20B", number, expiry, imgUrl }, { type: "DL21B", ... }]
+  bankAccount        Json?              // { accountNumber, ifsc, bankName, branch, holderName }
+  cancelCheck        String?            // S3 URL — cancelled cheque image
+  document           String?            // S3 URL — extra supporting document
+  inviteCode         String?            // Referral / invite code
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  creditTier         CreditTier?        // null=pending(status 0), PREPAID(1), EMI(2), FULLCREDIT(3)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([city])
   @@index([state])
   @@index([pincode])
+  @@index([verificationStatus])
+  @@index([creditTier])
   @@map("buyer_profiles")
 }
 
@@ -203,6 +219,8 @@ model SellerProfile {
   isVacation         Boolean            @default(false)
   rating             Float              @default(0)
   verificationStatus VerificationStatus @default(UNVERIFIED)
+  gstPanResponse     Json? // IDFY verification response: { status: true/false, legalName, gstNumber, message, ... }
+  creditTier         CreditTier? // null=not approved, PREPAID(legacy 1), EMI(legacy 2), FULLCREDIT(legacy 3)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -214,6 +232,7 @@ model SellerProfile {
   @@index([city])
   @@index([state])
   @@index([verificationStatus])
+  @@index([creditTier])
   @@index([isVacation])
   @@map("seller_profiles")
 }

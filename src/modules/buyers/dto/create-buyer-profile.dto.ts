@@ -3,62 +3,100 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
+  IsObject,
+  IsArray,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBuyerProfileDto {
+  @ApiProperty({ example: '9876543210', description: 'Buyer phone number' })
+  @IsString()
+  @IsNotEmpty()
+  phone: string;
+
+  @ApiProperty({ example: 'Rajesh Kumar' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiPropertyOptional({ example: 'buyer@example.com' })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
   @ApiProperty({ example: 'MediCorp Pharma Pvt Ltd' })
   @IsString()
   @IsNotEmpty()
   legalName: string;
 
-  @ApiProperty({ example: '27AABCU9603R1ZM', description: '15-char GSTIN' })
+  @ApiPropertyOptional({ example: '27AABCU9603R1ZM', description: '15-char GSTIN (required if no PAN)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
+  @ValidateIf((o) => !!o.gstNumber)
   @Matches(/^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}$/, {
     message: 'gstNumber must be a valid 15-character GSTIN',
   })
-  gstNumber: string;
+  gstNumber?: string;
 
-  @ApiProperty({ example: 'ABCDE1234F', description: '10-char PAN' })
+  @ApiPropertyOptional({ example: 'ABCDE1234F', description: '10-char PAN (required if no GST)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
+  @ValidateIf((o) => !!o.panNumber)
   @Matches(/^[A-Z]{5}\d{4}[A-Z]{1}$/, {
     message: 'panNumber must be a valid 10-character PAN',
   })
-  panNumber: string;
+  panNumber?: string;
 
-  @ApiProperty({ example: 'DL-MH-123456' })
+  @ApiPropertyOptional({ example: 'DL-MH-123456' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  drugLicenseNumber: string;
+  drugLicenseNumber?: string;
 
-  @ApiProperty({ example: 'https://s3.amazonaws.com/drug-license.pdf' })
+  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/drug-license.pdf' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  drugLicenseUrl: string;
+  drugLicenseUrl?: string;
 
-  @ApiProperty({ example: '123, MG Road, Andheri East' })
-  @IsString()
-  @IsNotEmpty()
-  address: string;
+  @ApiPropertyOptional({
+    description: 'Structured address object',
+    example: { street1: '123 MG Road', street2: 'Andheri East', city: 'Mumbai', state: 'Maharashtra', pincode: '400069' },
+  })
+  @IsOptional()
+  @IsObject()
+  address?: Record<string, any>;
 
-  @ApiProperty({ example: 'Mumbai' })
-  @IsString()
-  @IsNotEmpty()
-  city: string;
+  @ApiPropertyOptional({
+    description: 'Drug licence details array',
+    example: [{ type: 'DL20B', number: 'DL-20B-12345', expiry: '2026-12-31', imgUrl: 'https://...' }],
+  })
+  @IsOptional()
+  @IsArray()
+  licence?: Record<string, any>[];
 
-  @ApiProperty({ example: 'Maharashtra' })
-  @IsString()
-  @IsNotEmpty()
-  state: string;
+  @ApiPropertyOptional({
+    description: 'Bank account details',
+    example: { accountNumber: '1234567890', ifsc: 'SBIN0001234', bankName: 'SBI', branch: 'Andheri', holderName: 'Rajesh Kumar' },
+  })
+  @IsOptional()
+  @IsObject()
+  bankAccount?: Record<string, any>;
 
-  @ApiProperty({ example: '400069', description: '6-digit pincode' })
+  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/cancel-check.jpg' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\d{6}$/, { message: 'pincode must be a valid 6-digit code' })
-  pincode: string;
+  cancelCheck?: string;
+
+  @ApiPropertyOptional({ example: 'https://s3.amazonaws.com/document.pdf' })
+  @IsOptional()
+  @IsString()
+  document?: string;
+
+  @ApiPropertyOptional({ example: 'INV-SELLER-001' })
+  @IsOptional()
+  @IsString()
+  inviteCode?: string;
 
   @ApiPropertyOptional({ example: 19.076 })
   @IsOptional()
@@ -69,4 +107,9 @@ export class CreateBuyerProfileDto {
   @IsOptional()
   @IsNumber()
   longitude?: number;
+
+  @ApiPropertyOptional({ description: 'Pre-verified IDFY response (from /verification/pangst)' })
+  @IsOptional()
+  @IsObject()
+  gstPanResponse?: Record<string, any>;
 }

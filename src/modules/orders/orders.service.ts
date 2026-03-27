@@ -51,6 +51,17 @@ export class OrdersService {
       throw new BadRequestException('Cart is empty. Add products before checkout.');
     }
 
+    // 1b. Verify buyer profile is approved
+    const buyerProfile = await this.prisma.buyerProfile.findUnique({
+      where: { userId },
+      select: { verificationStatus: true, creditTier: true },
+    });
+    if (!buyerProfile || buyerProfile.verificationStatus !== 'VERIFIED' || !buyerProfile.creditTier) {
+      throw new ForbiddenException(
+        'Your profile is pending verification. Please wait for admin approval before placing orders.',
+      );
+    }
+
     // 2. Validate every cart item
     for (const item of cart.items) {
       const { product } = item;

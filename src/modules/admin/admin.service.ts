@@ -1165,4 +1165,64 @@ export class AdminService {
       select: { id: true, companyName: true, rating: true, user: { select: { phone: true } } }
     });
   }
+
+  // ═══════════════════════════════════════════════════
+  // GST/PAN VERIFICATION STATUS (Admin Override)
+  // ═══════════════════════════════════════════════════
+
+  async updateBuyerGstPanStatus(
+    buyerId: string,
+    dto: { verified: boolean; creditTier?: import('@prisma/client').CreditTier },
+  ) {
+    const buyer = await this.prisma.buyerProfile.findUnique({
+      where: { id: buyerId },
+    });
+
+    if (!buyer) {
+      throw new NotFoundException('Buyer profile not found');
+    }
+
+    const profile = await this.prisma.buyerProfile.update({
+      where: { id: buyerId },
+      data: {
+        verificationStatus: dto.verified ? 'VERIFIED' : 'REJECTED',
+        creditTier: dto.verified ? (dto.creditTier ?? null) : null,
+      },
+    });
+
+    // Also update user status based on verification decision
+    await this.prisma.user.update({
+      where: { id: buyer.userId },
+      data: {
+        status: dto.verified ? UserStatus.APPROVED : UserStatus.REJECTED,
+      },
+    });
+
+    this.logger.log(
+      `Buyer ${buyerId} ${dto.verified ? 'approved' : 'rejected'} — creditTier: ${dto.creditTier ?? 'none'}`,
+    );
+
+    return profile;
+  }
+
+  async updateSellerGstPanStatus(
+    sellerId: string,
+    dto: { verified: boolean; creditTier?: import('@prisma/client').CreditTier },
+  ) {
+    const seller = await this.prisma.sellerProfile.findUnique({
+      where: { id: sellerId },
+    });
+
+    if (!seller) {
+      throw new NotFoundException('Seller profile not found');
+    }
+
+    return this.prisma.sellerProfile.update({
+      where: { id: sellerId },
+      data: {
+        verificationStatus: dto.verified ? 'VERIFIED' : 'REJECTED',
+        creditTier: dto.verified ? (dto.creditTier ?? null) : null,
+      },
+    });
+  }
 }

@@ -2,21 +2,27 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { IdfyService } from '../verification/idfy.service';
 import { CreateBuyerProfileDto } from './dto/create-buyer-profile.dto';
 import { UpdateBuyerProfileDto } from './dto/update-buyer-profile.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class BuyersService {
   private readonly logger = new Logger(BuyersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly idfyService: IdfyService,
+  ) {}
 
   /**
    * Create a new buyer profile for an authenticated BUYER user.
-   * Throws ConflictException if profile already exists.
+   * Verifies GST or PAN via IDFY; blocks creation on verification failure.
    */
   async createProfile(userId: string, dto: CreateBuyerProfileDto) {
     const existing = await this.prisma.buyerProfile.findUnique({
@@ -27,25 +33,184 @@ export class BuyersService {
       throw new ConflictException('Buyer profile already exists');
     }
 
+    if (!dto.gstNumber && !dto.panNumber) {
+      throw new BadRequestException('Either GST number or PAN number is required');
+    }
+
+    // Use pre-verified response if provided, otherwise verify via IDFY
+    let gstPanResponse: any = dto.gstPanResponse ?? null;
+
+    if (!gstPanResponse && this.idfyService.isConfigured()) {
+      if (dto.gstNumber) {
+        const result = await this.idfyService.verifyGst(dto.gstNumber);
+        if (!result.status) {
+          throw new BadRequestException(result.message || 'GST verification failed');
+        }
+        gstPanResponse = result;
+      } else if (dto.panNumber) {
+        const result = await this.idfyService.verifyPan(dto.panNumber);
+        if (!result.status) {
+          throw new BadRequestException(result.message || 'PAN verification failed');
+        }
+        gstPanResponse = result;
+      }
+    }
+
+    if (!gstPanResponse || !gstPanResponse.status) {
+      throw new BadRequestException(
+        'IDFY verification is required. Please verify GST or PAN before submitting.',
+      );
+    }
+
+    // Extract address fields from the structured address object
+    const addr = dto.address as any;
+    const city = addr?.city ?? dto.address?.['city'] ?? '';
+    const state = addr?.state ?? dto.address?.['state'] ?? '';
+    const pincode = addr?.pincode ?? dto.address?.['pincode'] ?? '';
+
     const profile = await this.prisma.buyerProfile.create({
       data: {
         userId,
         legalName: dto.legalName,
-        gstNumber: dto.gstNumber,
-        panNumber: dto.panNumber,
-        drugLicenseNumber: dto.drugLicenseNumber,
-        drugLicenseUrl: dto.drugLicenseUrl,
-        address: dto.address,
-        city: dto.city,
-        state: dto.state,
-        pincode: dto.pincode,
+        gstNumber: dto.gstNumber ?? null,
+        panNumber: dto.panNumber ?? null,
+        drugLicenseNumber: dto.drugLicenseNumber ?? null,
+        drugLicenseUrl: dto.drugLicenseUrl ?? null,
+        address: dto.address ?? null,
+        city: city || null,
+        state: state || null,
+        pincode: pincode || null,
         latitude: dto.latitude,
         longitude: dto.longitude,
+        gstPanResponse,
+        licence: dto.licence ?? null,
+        bankAccount: dto.bankAccount ?? null,
+        cancelCheck: dto.cancelCheck ?? null,
+        document: dto.document ?? null,
+        inviteCode: dto.inviteCode ?? null,
+        verificationStatus: 'PENDING', // Always pending — admin must verify
+        creditTier: null, // status 0 — no tier until admin approves
       },
+    });
+
+    // Update user status to PENDING
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'PENDING' },
     });
 
     this.logger.log(`Buyer profile created for user ${userId}`);
     return profile;
+  }
+
+  /**
+   * Seller-initiated buyer onboarding.
+   * Creates a BUYER user + profile in one step.
+   * Returns the created buyer profile.
+   */
+  async onboardBuyer(sellerId: string, dto: CreateBuyerProfileDto) {
+    if (!dto.gstNumber && !dto.panNumber) {
+      throw new BadRequestException('Either GST number or PAN number is required');
+    }
+
+    if (!dto.gstPanResponse || !dto.gstPanResponse.status) {
+      throw new BadRequestException(
+        'IDFY verification is required. Verify GST or PAN before submitting.',
+      );
+    }
+
+    // Check if buyer user already exists by phone
+    const existingUser = await this.prisma.user.findUnique({
+      where: { phone: dto.phone },
+      include: { buyerProfile: true },
+    });
+
+    if (existingUser?.buyerProfile) {
+      throw new ConflictException('A buyer with this phone number already has a profile');
+    }
+
+    // Extract address fields
+    const addr = dto.address as any;
+    const city = addr?.city ?? '';
+    const state = addr?.state ?? '';
+    const pincode = addr?.pincode ?? '';
+
+    let userId: string;
+
+    if (existingUser) {
+      // User exists but no buyer profile — reuse
+      userId = existingUser.id;
+    } else {
+      // Create new buyer user with default password (they'll reset via OTP)
+      const hashedPassword = await bcrypt.hash('default_buyer_123', 10);
+      const newUser = await this.prisma.user.create({
+        data: {
+          phone: dto.phone,
+          email: dto.email ?? null,
+          password: hashedPassword,
+          role: 'BUYER',
+          status: 'PENDING',
+        },
+      });
+      userId = newUser.id;
+    }
+
+    const profile = await this.prisma.buyerProfile.create({
+      data: {
+        userId,
+        legalName: dto.legalName,
+        gstNumber: dto.gstNumber ?? null,
+        panNumber: dto.panNumber ?? null,
+        drugLicenseNumber: dto.drugLicenseNumber ?? null,
+        drugLicenseUrl: dto.drugLicenseUrl ?? null,
+        address: dto.address ?? null,
+        city: city || null,
+        state: state || null,
+        pincode: pincode || null,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        gstPanResponse: dto.gstPanResponse,
+        licence: dto.licence ?? null,
+        bankAccount: dto.bankAccount ?? null,
+        cancelCheck: dto.cancelCheck ?? null,
+        document: dto.document ?? null,
+        inviteCode: dto.inviteCode ?? null,
+        verificationStatus: 'PENDING',
+        creditTier: null,
+      },
+    });
+
+    // Set user status to PENDING
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { status: 'PENDING' },
+    });
+
+    this.logger.log(`Buyer onboarded by seller ${sellerId} — user ${userId}`);
+    return { ...profile, phone: dto.phone, name: dto.name, email: dto.email };
+  }
+
+  /**
+   * Get all buyer profiles (for admin).
+   */
+  async getAllBuyers(page = 1, limit = 20) {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.prisma.buyerProfile.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: { id: true, phone: true, email: true, status: true, createdAt: true },
+          },
+        },
+      }),
+      this.prisma.buyerProfile.count(),
+    ]);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   /**
@@ -54,6 +219,9 @@ export class BuyersService {
   async getProfile(userId: string) {
     const profile = await this.prisma.buyerProfile.findUnique({
       where: { userId },
+      include: {
+        user: { select: { id: true, phone: true, email: true, status: true } },
+      },
     });
 
     if (!profile) {
@@ -77,9 +245,18 @@ export class BuyersService {
       );
     }
 
+    const updateData: any = { ...dto };
+    // Extract city/state/pincode from address if provided
+    if (dto.address) {
+      const addr = dto.address as any;
+      if (addr.city) updateData.city = addr.city;
+      if (addr.state) updateData.state = addr.state;
+      if (addr.pincode) updateData.pincode = addr.pincode;
+    }
+
     const profile = await this.prisma.buyerProfile.update({
       where: { userId },
-      data: dto,
+      data: updateData,
     });
 
     this.logger.log(`Buyer profile updated for user ${userId}`);

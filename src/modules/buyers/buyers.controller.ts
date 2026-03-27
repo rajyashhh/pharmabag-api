@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -22,13 +23,13 @@ import { UpdateBuyerProfileDto } from './dto/update-buyer-profile.dto';
 @ApiBearerAuth('JWT-auth')
 @Controller('buyers')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(Role.BUYER)
 export class BuyersController {
   constructor(private readonly buyersService: BuyersService) {}
 
   @Post('profile')
+  @Roles(Role.BUYER)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create buyer KYC profile' })
+  @ApiOperation({ summary: 'Create buyer KYC profile (BUYER role)' })
   @ApiResponse({ status: 201, description: 'Buyer profile created' })
   @ApiResponse({ status: 403, description: 'Forbidden — not a buyer' })
   async createProfile(
@@ -40,8 +41,9 @@ export class BuyersController {
   }
 
   @Get('profile')
+  @Roles(Role.BUYER)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get buyer profile' })
+  @ApiOperation({ summary: 'Get buyer profile (BUYER role)' })
   @ApiResponse({ status: 200, description: 'Buyer profile returned' })
   async getProfile(@CurrentUser('id') userId: string) {
     const data = await this.buyersService.getProfile(userId);
@@ -49,8 +51,9 @@ export class BuyersController {
   }
 
   @Patch('profile')
+  @Roles(Role.BUYER)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update buyer profile' })
+  @ApiOperation({ summary: 'Update buyer profile (BUYER role)' })
   @ApiResponse({ status: 200, description: 'Buyer profile updated' })
   async updateProfile(
     @CurrentUser('id') userId: string,
@@ -58,5 +61,36 @@ export class BuyersController {
   ) {
     const data = await this.buyersService.updateProfile(userId, dto);
     return { message: 'Buyer profile updated successfully', data };
+  }
+
+  @Post('onboard')
+  @Roles(Role.SELLER)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Seller onboards a buyer (SELLER role)' })
+  @ApiResponse({ status: 201, description: 'Buyer onboarded successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid buyer data or IDFY verification failed' })
+  @ApiResponse({ status: 403, description: 'Forbidden — not a seller' })
+  async onboardBuyer(
+    @CurrentUser('id') sellerId: string,
+    @Body() dto: CreateBuyerProfileDto,
+  ) {
+    const data = await this.buyersService.onboardBuyer(sellerId, dto);
+    return { message: 'Buyer onboarded successfully', data };
+  }
+
+  @Get('all')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get all buyer profiles (ADMIN only)' })
+  @ApiResponse({ status: 200, description: 'List of buyer profiles' })
+  async getAllBuyers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const data = await this.buyersService.getAllBuyers(
+      page ? parseInt(page, 10) : 1,
+      limit ? parseInt(limit, 10) : 20,
+    );
+    return { message: 'Buyers retrieved successfully', data };
   }
 }

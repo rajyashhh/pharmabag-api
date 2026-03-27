@@ -2,9 +2,11 @@ import {
   Injectable,
   ConflictException,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { IdfyService } from '../verification/idfy.service';
 import { CreateSellerProfileDto } from './dto/create-seller-profile.dto';
 import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 
@@ -12,11 +14,15 @@ import { UpdateSellerProfileDto } from './dto/update-seller-profile.dto';
 export class SellersService {
   private readonly logger = new Logger(SellersService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly idfyService: IdfyService,
+  ) {}
 
   /**
    * Create a new seller profile for an authenticated SELLER user.
-   * Sets default verificationStatus = UNVERIFIED, rating = 0.
+   * Verifies GST via IDFY; blocks creation on verification failure (legacy behavior).
+   * Sets verificationStatus = PENDING after successful IDFY check.
    */
   async createProfile(userId: string, dto: CreateSellerProfileDto) {
     const existing = await this.prisma.sellerProfile.findUnique({
@@ -25,6 +31,16 @@ export class SellersService {
 
     if (existing) {
       throw new ConflictException('Seller profile already exists');
+    }
+
+    // IDFY GST verification — BLOCK on failure (legacy behavior)
+    let gstPanResponse: any = null;
+    if (this.idfyService.isConfigured() && dto.gstNumber) {
+      const result = await this.idfyService.verifyGst(dto.gstNumber);
+      if (!result.status) {
+        throw new BadRequestException(result.message || 'GST verification failed');
+      }
+      gstPanResponse = result;
     }
 
     const profile = await this.prisma.sellerProfile.create({
@@ -39,7 +55,8 @@ export class SellersService {
         city: dto.city,
         state: dto.state,
         pincode: dto.pincode,
-        verificationStatus: 'UNVERIFIED',
+        gstPanResponse,
+        verificationStatus: gstPanResponse ? 'PENDING' : 'UNVERIFIED',
         rating: 0,
       },
     });

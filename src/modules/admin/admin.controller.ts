@@ -29,6 +29,7 @@ import { AdminUpdateOrderStatusDto } from './dto/admin-update-order-status.dto';
 import { AdminUpdateTicketStatusDto } from './dto/admin-update-ticket-status.dto';
 import { AdminReplyTicketDto } from './dto/admin-reply-ticket.dto';
 import { MarkPaidDto } from '../settlements/dto/mark-paid.dto';
+import { UpdateGstPanStatusDto } from './dto/update-gst-pan-status.dto';
 
 @ApiTags('Admin')
 @ApiBearerAuth('JWT-auth')
@@ -457,6 +458,36 @@ export class AdminController {
   async getTopSellers(@Query('limit') limit: number) {
     const data = await this.adminService.getTopSellers(limit);
     return { message: 'Top sellers retrieved', data };
+  }
+
+  // ═══════════════════════════════════════════════════
+  // GST/PAN VERIFICATION STATUS
+  // ═══════════════════════════════════════════════════
+
+  @Patch('buyers/:id/gst-pan-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update buyer GST/PAN verification status and credit tier' })
+  @ApiResponse({ status: 200, description: 'Buyer GST/PAN status updated' })
+  @ApiResponse({ status: 404, description: 'Buyer profile not found' })
+  async updateBuyerGstPanStatus(
+    @Param('id', ParseUUIDPipe) buyerId: string,
+    @Body() dto: UpdateGstPanStatusDto,
+  ) {
+    const data = await this.adminService.updateBuyerGstPanStatus(buyerId, dto);
+    return { message: 'Buyer GST/PAN status updated', data };
+  }
+
+  @Patch('sellers/:id/gst-pan-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update seller GST/PAN verification status and credit tier' })
+  @ApiResponse({ status: 200, description: 'Seller GST/PAN status updated' })
+  @ApiResponse({ status: 404, description: 'Seller profile not found' })
+  async updateSellerGstPanStatus(
+    @Param('id', ParseUUIDPipe) sellerId: string,
+    @Body() dto: UpdateGstPanStatusDto,
+  ) {
+    const data = await this.adminService.updateSellerGstPanStatus(sellerId, dto);
+    return { message: 'Seller GST/PAN status updated', data };
   }
 }
 
