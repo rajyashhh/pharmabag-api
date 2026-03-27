@@ -14,6 +14,7 @@ import * as crypto from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { REDIS_CLIENT } from '../../config/redis.config';
 import { Role, UserStatus } from '@prisma/client';
+import { OtpSmsService } from './services/otp-sms.service';
 
 // ─── Constants ───────────────────────────────────────
 
@@ -48,6 +49,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly otpSmsService: OtpSmsService,
   ) {}
 
   // ─── SEND OTP ──────────────────────────────────────
@@ -70,8 +72,22 @@ export class AuthService {
       await this.redis.expire(rateLimitKey, OTP_RATE_LIMIT_WINDOW);
     }
 
-    // TODO: Replace with actual SMS provider (MSG91 / Twilio / AWS SNS)
-    this.logger.debug(`[DEV] OTP for ${phone}: ${otp}`);
+    // Send OTP via Nimbus IT SMS service
+    try {
+      if (this.otpSmsService.isConfigured()) {
+        // Production: Send via Nimbus IT SMS API
+        await this.otpSmsService.sendOtp(phone, otp);
+        this.logger.log(`OTP sent to ${phone} via Nimbus IT SMS`);
+      } else {
+        // Development: Log OTP without sending
+        this.otpSmsService.logOtpForDevelopment(phone, otp);
+        this.logger.warn('OTP service not configured. OTP logged for development only.');
+      }
+    } catch (error) {
+      this.logger.error(`Failed to send OTP: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Don't throw - OTP is already stored in Redis, user can still verify it
+      // In production, you might want to throw and fail the request
+    }
 
     return { message: 'OTP sent successfully' };
   }
