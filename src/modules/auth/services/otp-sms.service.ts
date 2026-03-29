@@ -15,7 +15,7 @@ export class OtpSmsService {
   private readonly logger = new Logger(OtpSmsService.name);
   private readonly nimbusApiUrl: string;
   private readonly nimbusUser: string;
-  private readonly nimbusKey: string;
+  private readonly nimbusPassword: string;
   private readonly smsTemplateMessage: string;
   private readonly referenceId: string;
   private readonly entityId: string;
@@ -26,11 +26,13 @@ export class OtpSmsService {
     // Load Nimbus IT credentials from environment variables
     this.nimbusApiUrl =
       this.configService.get<string>('NIMBUS_API_URL') ||
-      'https://nimbusit.biz/api/SmsApi/SendSingleApi';
+      'http://nimbusit.biz/api/SmsApi/SendSingleApi';
     this.nimbusUser =
       this.configService.get<string>('NIMBUS_USER') || 'jaipharmabiz';
-    this.nimbusKey =
-      this.configService.get<string>('NIMBUS_KEY') || '5xG7ObfV';
+    this.nimbusPassword =
+      this.configService.get<string>('NIMBUS_PASSWORD') ||
+      this.configService.get<string>('NIMBUS_KEY') || 
+      '5xG7ObfV';
     this.sender = this.configService.get<string>('NIMBUS_SENDER') || 'PHABAG';
     this.smsTemplateMessage =
       this.configService.get<string>('NIMBUS_OTP_MESSAGE') ||
@@ -45,7 +47,7 @@ export class OtpSmsService {
       '1707163835062147514';
 
     // Validate critical configuration
-    if (!this.nimbusUser || !this.nimbusKey) {
+    if (!this.nimbusUser || !this.nimbusPassword) {
       this.logger.warn(
         'Nimbus IT SMS credentials not fully configured. OTP sending will fail in production.',
       );
@@ -61,7 +63,7 @@ export class OtpSmsService {
   async sendOtp(phoneNumber: string, otp: string): Promise<NimbusOtpResponseDto> {
     try {
       console.log(`[OTP-SMS] Starting OTP send for ${phoneNumber}`);
-      
+
       // Validate input
       if (!phoneNumber || !otp) {
         throw new HttpException(
@@ -87,12 +89,12 @@ export class OtpSmsService {
       // Notice: we use the credentials provided in the photo as defaults
       const queryParams = new URLSearchParams({
         UserID: this.nimbusUser,
-        Password: this.nimbusKey,
+        Password: this.nimbusPassword,
         SenderID: this.sender,
         Phno: cleanPhone,
         Msg: encodedMsg,
         EntityID: this.entityId,
-        TemplateId: this.templateId,
+        TemplateID: this.templateId,
       });
 
       // Special handling: Nimbus often expects the URL to be built exactly as in the photo 
@@ -150,7 +152,7 @@ export class OtpSmsService {
    * @returns true if credentials are available
    */
   isConfigured(): boolean {
-    return !!(this.nimbusUser && this.nimbusKey);
+    return !!(this.nimbusUser && this.nimbusPassword);
   }
 
   /**
@@ -219,7 +221,7 @@ export class OtpSmsService {
                   message: data,
                 };
               }
-              
+
               console.log(`[OTP-SMS] Success:`, responseData);
               resolve(responseData);
             } catch (err) {
