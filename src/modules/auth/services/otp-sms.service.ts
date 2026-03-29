@@ -81,25 +81,15 @@ export class OtpSmsService {
         );
       }
 
-      // Replace placeholder in message with actual OTP and encode
+      // Replace placeholder in message with actual OTP
       const rawMessage = this.smsTemplateMessage.replace('{otp}', otp);
+      
+      // ONLY encode the message, as seen in your photo
       const encodedMsg = encodeURIComponent(rawMessage);
 
-      // Build GET request URL as per the photo
-      // Notice: we use the credentials provided in the photo as defaults
-      const queryParams = new URLSearchParams({
-        UserID: this.nimbusUser,
-        Password: this.nimbusPassword,
-        SenderID: this.sender,
-        Phno: cleanPhone,
-        Msg: encodedMsg,
-        EntityID: this.entityId,
-        TemplateID: this.templateId,
-      });
-
-      // Special handling: Nimbus often expects the URL to be built exactly as in the photo 
-      // where the message is already encoded.
-      const finalUrl = `${this.nimbusApiUrl}?${queryParams.toString()}`;
+      // Build the URL manually to match the exactly format in your photo 
+      // This prevents double-encoding and uses the exact parameter names
+      const finalUrl = `${this.nimbusApiUrl}?UserID=${this.nimbusUser}&Password=${this.nimbusPassword}&SenderID=${this.sender}&Phno=${cleanPhone}&Msg=${encodedMsg}&EntityID=${this.entityId}&TemplateID=${this.templateId}`;
 
       console.log(`[OTP-SMS] Prepared URL: ${this.nimbusApiUrl}`);
       this.logger.debug(
