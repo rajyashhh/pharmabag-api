@@ -26,11 +26,11 @@ export class OtpSmsService {
     // Load Nimbus IT credentials from environment variables
     this.nimbusApiUrl =
       this.configService.get<string>('NIMBUS_API_URL') ||
-      'http://nimbusit.info/api/pushsmsjson.php';
+      'https://nimbusit.biz/api/SmsApi/SendSingleApi';
     this.nimbusUser =
-      this.configService.get<string>('NIMBUS_USER') || 't5jaipharma';
+      this.configService.get<string>('NIMBUS_USER') || 'jaipharmabiz';
     this.nimbusKey =
-      this.configService.get<string>('NIMBUS_KEY') || '010Qftn20u6Y7M31aWNY';
+      this.configService.get<string>('NIMBUS_KEY') || '5xG7ObfV';
     this.sender = this.configService.get<string>('NIMBUS_SENDER') || 'PHABAG';
     this.smsTemplateMessage =
       this.configService.get<string>('NIMBUS_OTP_MESSAGE') ||
@@ -79,40 +79,39 @@ export class OtpSmsService {
         );
       }
 
-      // Replace placeholder in message with actual OTP and encode for third-party API
+      // Replace placeholder in message with actual OTP and encode
       const rawMessage = this.smsTemplateMessage.replace('{otp}', otp);
-      const message = encodeURIComponent(rawMessage);
+      const encodedMsg = encodeURIComponent(rawMessage);
 
-      // Build request payload
-      const payload: NimbusOtpRequestDto = {
-        Authorization: {
-          User: this.nimbusUser,
-          Key: this.nimbusKey,
-        },
-        Data: {
-          Sender: this.sender,
-          Message: message,
-          Flash: '0',
-          ReferenceId: this.referenceId,
-          EntityId: this.entityId,
-          TemplateId: this.templateId,
-          Mobile: [cleanPhone],
-        },
-      };
+      // Build GET request URL as per the photo
+      // Notice: we use the credentials provided in the photo as defaults
+      const queryParams = new URLSearchParams({
+        UserID: this.nimbusUser,
+        Password: this.nimbusKey,
+        SenderID: this.sender,
+        Phno: cleanPhone,
+        Msg: encodedMsg,
+        EntityID: this.entityId,
+        TemplateId: this.templateId,
+      });
 
-      console.log(`[OTP-SMS] Payload prepared. Config: User=${this.nimbusUser}, URL=${this.nimbusApiUrl}`);
+      // Special handling: Nimbus often expects the URL to be built exactly as in the photo 
+      // where the message is already encoded.
+      const finalUrl = `${this.nimbusApiUrl}?${queryParams.toString()}`;
+
+      console.log(`[OTP-SMS] Prepared URL: ${this.nimbusApiUrl}`);
       this.logger.debug(
         `[OTP-SMS] Sending OTP to ${cleanPhone} via Nimbus IT API`,
       );
 
-      // Make HTTP POST request to Nimbus IT API
-      console.log(`[OTP-SMS] Making HTTP request to Nimbus IT API...`);
-      const responseData = await this.makeHttpRequest(payload);
+      // Make HTTP GET request to Nimbus IT API
+      console.log(`[OTP-SMS] Making GET request to Nimbus IT API...`);
+      const responseData = await this.makeHttpRequest(finalUrl);
 
       // Log success
       console.log(`[OTP-SMS] SMS sent successfully. Response:`, responseData);
       this.logger.log(
-        `[OTP-SMS] OTP sent successfully to ${cleanPhone}. Response: ${JSON.stringify(responseData)}`,
+        `[OTP-SMS] OTP sent successfully to ${cleanPhone}.`,
       );
 
       return responseData;
@@ -163,31 +162,28 @@ export class OtpSmsService {
   }
 
   /**
-   * Helper method to make HTTP POST request to Nimbus IT API
-   * @param payload - Request payload
+   * Helper method to make HTTP GET request to Nimbus IT API
+   * @param url - Full URL with query parameters
    * @returns Parsed response from API
    */
-  private makeHttpRequest(payload: NimbusOtpRequestDto): Promise<NimbusOtpResponseDto> {
+  private makeHttpRequest(url: string): Promise<NimbusOtpResponseDto> {
     return new Promise((resolve, reject) => {
       try {
-        const parsedUrl = new URL(this.nimbusApiUrl);
+        const parsedUrl = new URL(url);
         const isHttps = parsedUrl.protocol === 'https:';
         const httpModule = isHttps ? https : http;
-
-        const postData = JSON.stringify(payload);
 
         const options: any = {
           hostname: parsedUrl.hostname,
           port: parsedUrl.port ? parseInt(parsedUrl.port, 10) : (isHttps ? 443 : 80),
-          path: parsedUrl.pathname,
-          method: 'POST',
+          path: parsedUrl.pathname + parsedUrl.search,
+          method: 'GET',
           headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData),
+            'Accept': 'application/json',
           },
         };
 
-        console.log(`[OTP-SMS] Making POST request to:`, options.hostname + options.path);
+        console.log(`[OTP-SMS] Making GET request to:`, options.hostname + options.path);
 
         const req = httpModule.request(options, (res) => {
           let data = '';
@@ -212,7 +208,18 @@ export class OtpSmsService {
                 );
               }
 
-              const responseData = JSON.parse(data) as NimbusOtpResponseDto;
+              // Try to parse as JSON if it looks like JSON, otherwise return as string message
+              let responseData: NimbusOtpResponseDto;
+              try {
+                responseData = JSON.parse(data) as NimbusOtpResponseDto;
+              } catch (e) {
+                // If not JSON, it might just be a success string
+                responseData = {
+                  status: res.statusCode === 200 ? 'success' : 'error',
+                  message: data,
+                };
+              }
+              
               console.log(`[OTP-SMS] Success:`, responseData);
               resolve(responseData);
             } catch (err) {
@@ -249,7 +256,6 @@ export class OtpSmsService {
           );
         });
 
-        req.write(postData);
         req.end();
       } catch (error) {
         console.error(`[OTP-SMS] Error:`, error);
