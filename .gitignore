@@ -23,8 +23,5 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-# Prisma
-prisma/migrations/
-
 # Coverage
 coverage/
