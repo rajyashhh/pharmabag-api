@@ -11,21 +11,21 @@ export const createRedisClient = (
 
   const client = isUrl
     ? new Redis(urlOrHost, {
-        maxRetriesPerRequest: null, // Required for BullMQ
-        retryStrategy(times: number) {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        },
-      })
+      maxRetriesPerRequest: null, // Required for BullMQ
+      retryStrategy(times: number) {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+    })
     : new Redis({
-        host: urlOrHost,
-        port,
-        maxRetriesPerRequest: null, // Required for BullMQ
-        retryStrategy(times: number) {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        },
-      });
+      host: urlOrHost,
+      port,
+      maxRetriesPerRequest: null, // Required for BullMQ
+      retryStrategy(times: number) {
+        const delay = Math.min(times * 50, 2000);
+        return delay;
+      },
+    });
 
   client.on('connect', () => {
     logger.log('Redis connection established');

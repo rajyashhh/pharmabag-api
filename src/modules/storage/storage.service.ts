@@ -7,7 +7,9 @@ import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { randomUUID } from 'crypto';
 
 @Injectable()
@@ -47,17 +49,34 @@ export class StorageService {
 
   async uploadProductImage(file: Express.Multer.File): Promise<string> {
     this.validateFile(file, this.ALLOWED_IMAGE_TYPES);
-    return this.upload(file, 'product-images');
+    const key = await this.upload(file, 'product-images');
+    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
   }
 
   async uploadPaymentProof(file: Express.Multer.File): Promise<string> {
     this.validateFile(file, this.ALLOWED_DOC_TYPES);
-    return this.upload(file, 'payment-proofs');
+    const key = await this.upload(file, 'payment-proofs');
+    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
   }
 
   async uploadKycDocument(file: Express.Multer.File): Promise<string> {
     this.validateFile(file, this.ALLOWED_DOC_TYPES);
+    // For KYC, return the Key, not the public URL
     return this.upload(file, 'kyc-documents');
+  }
+
+  /**
+   * Generate a temporary (presigned) URL for a private file
+   * @param key S3 key (e.g. kyc-documents/uuid.pdf)
+   * @param expiresIn Seconds until the link expires (default 1 hour)
+   */
+  async getPresignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    });
+
+    return getSignedUrl(this.s3, command, { expiresIn });
   }
 
   private validateFile(
@@ -96,9 +115,7 @@ export class StorageService {
     });
 
     await this.s3.send(command);
-
-    const url = `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
-    this.logger.log(`File uploaded: ${url}`);
-    return url;
+    this.logger.log(`File uploaded to S3: ${key}`);
+    return key;
   }
 }

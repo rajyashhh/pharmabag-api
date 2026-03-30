@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Body,
   UseGuards,
   UseInterceptors,
   UploadedFile,
@@ -71,9 +72,26 @@ export class StorageController {
   @ApiOperation({ summary: 'Upload KYC document (buyer/seller)' })
   @ApiConsumes('multipart/form-data')
   @ApiBody(fileUploadBody)
-  @ApiResponse({ status: 201, description: 'KYC document uploaded, URL returned' })
+  @ApiResponse({ status: 201, description: 'KYC document uploaded, secure KEY returned' })
   async uploadKycDocument(@UploadedFile() file: Express.Multer.File) {
-    const url = await this.storageService.uploadKycDocument(file);
-    return { message: 'KYC document uploaded', data: { url } };
+    const key = await this.storageService.uploadKycDocument(file);
+    return {
+      message: 'KYC document uploaded securely',
+      data: {
+        key,
+        explanation: 'This is a private key. Use the /storage/view endpoint to get a temporary access link.',
+      },
+    };
+  }
+
+  @Post('view')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.BUYER, Role.SELLER, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate a temporary presigned URL for a private file' })
+  @ApiResponse({ status: 200, description: 'Temporary URL generated' })
+  async getPresignedUrl(@Body('key') key: string) {
+    const url = await this.storageService.getPresignedUrl(key);
+    return { data: { url } };
   }
 }
