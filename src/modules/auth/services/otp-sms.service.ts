@@ -46,8 +46,8 @@ export class OtpSmsService {
     }
 
     const formattedPhone = this.formatPhone(phone);
-    const message = this.messageTemplate.replace('{otp}', otp);
-
+    const message = this.messageTemplate.replace(/\{otp\}/g, otp);
+    this.logger.log(`Final message being sent: ${message}`);
     this.logger.log(`Sending OTP to ${formattedPhone}`);
 
     const params = {
