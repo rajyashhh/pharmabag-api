@@ -56,6 +56,9 @@ export class IdfyGstVerificationResponseDto {
   @ApiProperty({ example: 'GST Number is valid' })
   message: string;
 
+  @ApiProperty({ example: 'ind_gst_certificate', required: false })
+  verifiedDocumentType?: string | null;
+
   constructor(partial?: Partial<IdfyGstVerificationResponseDto>) {
     if (partial) {
       Object.assign(this, partial);

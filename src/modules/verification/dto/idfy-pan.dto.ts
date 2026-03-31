@@ -42,6 +42,9 @@ export class IdfyVerificationResponseDto {
   @ApiProperty({ example: 'Pan Number is valid' })
   message: string;
 
+  @ApiProperty({ example: 'ind_pan', required: false })
+  verifiedDocumentType?: string | null;
+
   constructor(partial?: Partial<IdfyVerificationResponseDto>) {
     if (partial) {
       Object.assign(this, partial);

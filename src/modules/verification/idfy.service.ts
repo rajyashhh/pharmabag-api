@@ -58,14 +58,22 @@ export class IdfyService {
 
   async verifyPan(panNumber: string): Promise<IdfyVerificationResponseDto> {
     if (!this.config) {
-      return { status: false, message: 'Verification service not configured' };
+      return { 
+        status: false, 
+        message: 'Verification service not configured',
+        verifiedDocumentType: null
+      };
     }
 
     try {
       // Step 1: Get/refresh access token
       const accessToken = await this.getAccessToken();
       if (!accessToken) {
-        return { status: false, message: 'Failed to obtain access token' };
+        return { 
+          status: false, 
+          message: 'Failed to obtain access token',
+          verifiedDocumentType: null
+        };
       }
 
       // Step 2: Call PAN search API
@@ -76,23 +84,56 @@ export class IdfyService {
       return this.parsePanResponse(response, panNumber);
     } catch (err: any) {
       this.logger.error(`PAN verification failed: ${err.message}`);
-      return { status: false, message: 'Pan Number is invalid' };
+      return { 
+        status: false, 
+        message: 'Pan Number is invalid',
+        verifiedDocumentType: null
+      };
     }
   }
 
   // ─────────────────────────────────────────────────
-  // GST VERIFICATION (Not supported by Masters India)
+  // GST VERIFICATION
   // ─────────────────────────────────────────────────
 
   async verifyGst(
     gstNumber: string,
   ): Promise<IdfyGstVerificationResponseDto> {
-    this.logger.warn('GST verification not supported by Masters India API');
-    return {
-      status: false,
-      message: 'GST verification not currently available',
-      gstNumber,
-    };
+    if (!this.config) {
+      return {
+        status: false,
+        message: 'Verification service not configured',
+        gstNumber,
+        verifiedDocumentType: null,
+      };
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+      if (!accessToken) {
+        return {
+          status: false,
+          message: 'Failed to obtain access token',
+          gstNumber,
+          verifiedDocumentType: null,
+        };
+      }
+
+      // Functional GST search API for Masters India
+      const url = `${this.config.apiBaseUrl}/searchgstin?gstin=${gstNumber}`;
+      this.logger.log(`Calling GST API: ${url}`);
+      const response = await this.makeGetRequest(url, accessToken);
+      this.logger.log(`GST API Response: ${JSON.stringify(response)}`);
+      return this.parseGstResponse(response, gstNumber);
+    } catch (err: any) {
+      this.logger.error(`GST verification failed: ${err.message}`);
+      return {
+        status: false,
+        message: 'GST Number is invalid',
+        gstNumber,
+        verifiedDocumentType: null,
+      };
+    }
   }
 
   // ─────────────────────────────────────────────────
@@ -100,9 +141,7 @@ export class IdfyService {
   // ─────────────────────────────────────────────────
 
   private async getAccessToken(): Promise<string | null> {
-    // Return cached token if still valid
     if (this.accessToken && Date.now() < this.tokenExpiresAt) {
-      this.logger.log('Using cached access token');
       return this.accessToken;
     }
 
@@ -115,29 +154,26 @@ export class IdfyService {
         password: this.config!.password,
       };
 
-      this.logger.log('Requesting OAuth access token...');
+      this.logger.log('Requesting OAuth access token from Masters India...');
       const response = await this.makePostRequest(this.config!.oauthUrl, payload);
-      this.logger.log(`OAuth Response: ${JSON.stringify(response)}`);
 
       if (response.access_token) {
         this.accessToken = response.access_token;
-        // Expire token 5 minutes before actual expiry for safety
         const expiresIn = (response.expires_in || 3600) - 300;
         this.tokenExpiresAt = Date.now() + expiresIn * 1000;
-        this.logger.log('Access token obtained successfully');
         return this.accessToken;
       }
 
-      this.logger.error(`No access token in OAuth response: ${JSON.stringify(response)}`);
+      this.logger.error(`No access token in Masters India response: ${JSON.stringify(response)}`);
       return null;
     } catch (err: any) {
-      this.logger.error(`OAuth request failed: ${err.message}`);
+      this.logger.error(`Masters India OAuth request failed: ${err.message}`);
       return null;
     }
   }
 
   // ─────────────────────────────────────────────────
-  // HTTP REQUESTS (POST for OAuth, GET for API)
+  // HTTP REQUESTS
   // ─────────────────────────────────────────────────
 
   private makePostRequest(
@@ -155,6 +191,8 @@ export class IdfyService {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
+          'User-Agent': 'PharmaBag/1.0.0',
+          'Accept': 'application/json',
         },
         timeout: TIMEOUT_MS,
       };
@@ -164,13 +202,9 @@ export class IdfyService {
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf-8');
-
           if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
-            return reject(
-              new Error(`Masters India API HTTP ${res.statusCode}: ${raw.slice(0, 200)}`),
-            );
+            return reject(new Error(`Masters India API HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
           }
-
           try {
             resolve(JSON.parse(raw));
           } catch {
@@ -180,11 +214,6 @@ export class IdfyService {
       });
 
       req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error(`Request timed out after ${TIMEOUT_MS}ms`));
-      });
-
       req.write(body);
       req.end();
     });
@@ -205,6 +234,8 @@ export class IdfyService {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
           'client_id': this.config!.clientId,
+          'User-Agent': 'PharmaBag/1.0.0',
+          'Accept': 'application/json',
         },
         timeout: TIMEOUT_MS,
       };
@@ -214,13 +245,9 @@ export class IdfyService {
         res.on('data', (chunk: Buffer) => chunks.push(chunk));
         res.on('end', () => {
           const raw = Buffer.concat(chunks).toString('utf-8');
-
           if (res.statusCode && (res.statusCode < 200 || res.statusCode >= 300)) {
-            return reject(
-              new Error(`Masters India API HTTP ${res.statusCode}: ${raw.slice(0, 200)}`),
-            );
+            return reject(new Error(`Masters India API HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
           }
-
           try {
             resolve(JSON.parse(raw));
           } catch {
@@ -230,11 +257,6 @@ export class IdfyService {
       });
 
       req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error(`Request timed out after ${TIMEOUT_MS}ms`));
-      });
-
       req.end();
     });
   }
@@ -247,81 +269,49 @@ export class IdfyService {
     response: any,
     panNumber: string,
   ): IdfyVerificationResponseDto {
-    this.logger.log(`Parsing PAN response: ${JSON.stringify(response)}`);
-    console.log(`[IDFY] Parsing PAN response:`, response);
-
-    if (!response) {
-      this.logger.warn('Empty response from PAN API');
-      return {
-        status: false,
-        message: 'Pan Number is invalid',
-      } as IdfyVerificationResponseDto;
+    if (!response || response.error === true || !Array.isArray(response.data) || response.data.length === 0) {
+      return { status: false, message: 'Pan Number is invalid', verifiedDocumentType: null };
     }
 
-    // Check if API returned error flag
-    if (response.error === true) {
-      this.logger.warn(`API returned error: ${response.message || 'Unknown error'}`);
-      return {
-        status: false,
-        message: 'Pan Number is invalid',
-      } as IdfyVerificationResponseDto;
-    }
-
-    // Masters India returns data as an array
-    let dataArray = response.data;
-    if (!Array.isArray(dataArray) || dataArray.length === 0) {
-      this.logger.warn(`Invalid data structure in response: ${JSON.stringify(response)}`);
-      return {
-        status: false,
-        message: 'Pan Number is invalid',
-      } as IdfyVerificationResponseDto;
-    }
-
-    // Get first record from array
-    const data = dataArray[0];
-
-    // Extract legal name from Masters India field names
-    // lgnm = legal name, tradeNam = trade name
-    const legalName = 
-      data.lgnm ?? 
-      data.name ?? 
-      data.legal_name ?? 
-      data.fullName ?? 
-      '';
-
-    if (!legalName) {
-      this.logger.warn(`No legal name found in response data: ${JSON.stringify(data)}`);
-      return {
-        status: false,
-        message: 'Pan Number is invalid',
-      } as IdfyVerificationResponseDto;
-    }
-
-    // Get GST number if available (may be empty for PAN not linked to GST)
-    // If no GST linked, we still return the PAN as verified
+    const data = response.data[0];
+    const legalName = data.lgnm ?? data.name ?? data.legal_name ?? data.fullName ?? 'N/A';
     const gstNumber = data.gstin || null;
-
-    this.logger.log(
-      `PAN verified successfully: ${legalName}${gstNumber ? ` | GST: ${gstNumber}` : ' | No GST linked'}`,
-    );
 
     return {
       status: true,
       legalName,
-      gstNumber: gstNumber || undefined, // Return GST only if it exists
-      message: gstNumber ? 'Pan Number is valid (GST linked)' : 'Pan Number is valid (No GST linked)',
-    } as IdfyVerificationResponseDto;
+      gstNumber: gstNumber || undefined,
+      message: 'Pan Number is valid',
+      verifiedDocumentType: 'ind_pan',
+    };
   }
 
   private parseGstResponse(
     response: any,
     gstNumber: string,
   ): IdfyGstVerificationResponseDto {
-    // GST not supported
+    if (!response || response.error === true || !Array.isArray(response.data) || response.data.length === 0) {
+      return { 
+        status: false, 
+        message: 'GST Number is invalid', 
+        gstNumber,
+        verifiedDocumentType: null 
+      };
+    }
+
+    const data = response.data[0];
+    const legalName = data.lgnm ?? data.name ?? data.legal_name ?? 'N/A';
+    const businessActivity = data.nature_of_business_activity ?? 'N/A';
+    const address = data.principal_place_of_business_address ?? data.address ?? 'N/A';
+
     return {
-      status: false,
-      message: 'GST verification not available',
+      status: true,
+      legalName,
       gstNumber,
-    } as IdfyGstVerificationResponseDto;
+      natureOfBusinessActivity: businessActivity,
+      address,
+      message: 'GST Number is valid',
+      verifiedDocumentType: 'ind_gst_certificate',
+    };
   }
 }
