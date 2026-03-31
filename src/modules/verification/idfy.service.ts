@@ -58,8 +58,8 @@ export class IdfyService {
 
   async verifyPan(panNumber: string): Promise<IdfyVerificationResponseDto> {
     if (!this.config) {
-      return { 
-        status: false, 
+      return {
+        status: false,
         message: 'Verification service not configured',
         verifiedDocumentType: null
       };
@@ -69,8 +69,8 @@ export class IdfyService {
       // Step 1: Get/refresh access token
       const accessToken = await this.getAccessToken();
       if (!accessToken) {
-        return { 
-          status: false, 
+        return {
+          status: false,
           message: 'Failed to obtain access token',
           verifiedDocumentType: null
         };
@@ -84,8 +84,8 @@ export class IdfyService {
       return this.parsePanResponse(response, panNumber);
     } catch (err: any) {
       this.logger.error(`PAN verification failed: ${err.message}`);
-      return { 
-        status: false, 
+      return {
+        status: false,
         message: 'Pan Number is invalid',
         verifiedDocumentType: null
       };
@@ -147,11 +147,12 @@ export class IdfyService {
 
     try {
       const payload = {
+        username: this.config!.username,
+        password: this.config!.password,
         client_id: this.config!.clientId,
         client_secret: this.config!.clientSecret,
         grant_type: 'password',
-        username: this.config!.username,
-        password: this.config!.password,
+
       };
 
       this.logger.log('Requesting OAuth access token from Masters India...');
@@ -166,8 +167,7 @@ export class IdfyService {
       }
 
       this.logger.error(
-        `OAuth Success but no token found in response. Status: ${
-          response.error ? 'Error' : 'OK'
+        `OAuth Success but no token found in response. Status: ${response.error ? 'Error' : 'OK'
         }, Body: ${JSON.stringify(response)}`,
       );
       return null;
@@ -297,11 +297,11 @@ export class IdfyService {
     gstNumber: string,
   ): IdfyGstVerificationResponseDto {
     if (!response || response.error === true || !Array.isArray(response.data) || response.data.length === 0) {
-      return { 
-        status: false, 
-        message: 'GST Number is invalid', 
+      return {
+        status: false,
+        message: 'GST Number is invalid',
         gstNumber,
-        verifiedDocumentType: null 
+        verifiedDocumentType: null
       };
     }
 

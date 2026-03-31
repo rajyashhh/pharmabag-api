@@ -55,7 +55,7 @@ export class OtpSmsService {
       Password: this.password,
       SenderID: this.sender,
       Phno: formattedPhone,
-      Msg: message, // ❌ DO NOT encode manually
+      Msg: message,
       EntityID: this.entityId,
       TemplateID: this.templateId,
     };
@@ -101,16 +101,18 @@ export class OtpSmsService {
   private formatPhone(phone: string): string {
     let clean = phone.replace(/\D/g, '');
 
+    // If it's a standard 10-digit Indian number, prepend 91
+    if (clean.length === 10) {
+      clean = '91' + clean;
+    }
+
     // India format: 0XXXXXXXXXX → 91XXXXXXXXXX
-    if (clean.startsWith('0')) {
+    if (clean.startsWith('0') && clean.length === 11) {
       clean = '91' + clean.substring(1);
     }
 
-    if (clean.length < 11) {
-      throw new HttpException(
-        'Invalid phone number',
-        HttpStatus.BAD_REQUEST,
-      );
+    if (clean.length < 12) {
+      this.logger.warn(`Phone number ${phone} may be too short for international format`);
     }
 
     return clean;
