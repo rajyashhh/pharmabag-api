@@ -161,10 +161,15 @@ export class IdfyService {
         this.accessToken = response.access_token;
         const expiresIn = (response.expires_in || 3600) - 300;
         this.tokenExpiresAt = Date.now() + expiresIn * 1000;
+        this.logger.log('Successfully obtained new OAuth token from Masters India');
         return this.accessToken;
       }
 
-      this.logger.error(`No access token in Masters India response: ${JSON.stringify(response)}`);
+      this.logger.error(
+        `OAuth Success but no token found in response. Status: ${
+          response.error ? 'Error' : 'OK'
+        }, Body: ${JSON.stringify(response)}`,
+      );
       return null;
     } catch (err: any) {
       this.logger.error(`Masters India OAuth request failed: ${err.message}`);
@@ -191,8 +196,9 @@ export class IdfyService {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(body),
-          'User-Agent': 'PharmaBag/1.0.0',
+          'User-Agent': 'PharmaBag/1.0.1',
           'Accept': 'application/json',
+          'client_id': this.config?.clientId || '',
         },
         timeout: TIMEOUT_MS,
       };
