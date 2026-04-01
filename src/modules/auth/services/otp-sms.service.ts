@@ -53,8 +53,9 @@ export class OtpSmsService {
 
     const formattedPhone = this.formatPhone(phone);
     
-    // Robust replacement: handles {otp}, [otp], <otp>, {#var#}, {%otp%} or just 'otp' word, case-insensitively
-    const message = this.messageTemplate.replace(/\{otp\}|\[otp\]|<otp>|\{#var#\}|\{%otp%\}|\botp\b/gi, otp);
+    // Robust replacement: handles {otp}, [otp], <otp>, {#var#}, or {%otp%} case-insensitively
+    // We intentionally do not use \botp\b to avoid matching the literal word "OTP" in the template.
+    const message = this.messageTemplate.replace(/\{otp\}|\[otp\]|<otp>|\{#var#\}|\{%otp%\}/gi, otp);
     
     this.logger.log(`Final message being sent: ${message}`);
     this.logger.log(`Sending OTP to ${formattedPhone}`);
