@@ -20,8 +20,14 @@ export class OtpSmsService {
       'http://nimbusit.biz/api/SmsApi/SendSingleApi';
 
     this.user = this.configService.get<string>('NIMBUS_USER') || '';
-    this.password = this.configService.get<string>('NIMBUS_PASSWORD') || '';
-    this.sender = this.configService.get<string>('NIMBUS_SENDER') || '';
+    
+    // Support both NIMBUS_PASSWORD and NIMBUS_KEY (as mentioned in docs)
+    this.password =
+      this.configService.get<string>('NIMBUS_PASSWORD') ||
+      this.configService.get<string>('NIMBUS_KEY') ||
+      '';
+      
+    this.sender = this.configService.get<string>('NIMBUS_SENDER') || 'PHABAG';
     this.entityId = this.configService.get<string>('NIMBUS_ENTITY_ID') || '';
     this.templateId = this.configService.get<string>('NIMBUS_TEMPLATE_ID') || '';
 
@@ -30,7 +36,7 @@ export class OtpSmsService {
       'Welcome to Pharmabag. Use OTP {otp} to login to your Pharmabag account';
 
     if (!this.user || !this.password) {
-      this.logger.warn('Nimbus SMS credentials missing!');
+      this.logger.warn('Nimbus SMS credentials (NIMBUS_USER/NIMBUS_KEY) missing!');
     }
   }
 
@@ -46,7 +52,10 @@ export class OtpSmsService {
     }
 
     const formattedPhone = this.formatPhone(phone);
-    const message = this.messageTemplate.replace(/\{otp\}/g, otp);
+    
+    // Robust replacement: handles {otp}, [otp], <otp>, {#var#}, {%otp%} or just 'otp' word, case-insensitively
+    const message = this.messageTemplate.replace(/\{otp\}|\[otp\]|<otp>|\{#var#\}|\{%otp%\}|\botp\b/gi, otp);
+    
     this.logger.log(`Final message being sent: ${message}`);
     this.logger.log(`Sending OTP to ${formattedPhone}`);
 
