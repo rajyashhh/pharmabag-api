@@ -145,6 +145,23 @@ export class AuthService {
       },
     });
 
+    if (user && suggestedRole && user.role !== suggestedRole && suggestedRole !== Role.ADMIN) {
+      // User exists but has a different role (e.g. BUYER logging into SELLER app)
+      // Update the user's role so the new token allows access to the requested app
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { role: suggestedRole },
+        select: {
+          id: true,
+          phone: true,
+          email: true,
+          role: true,
+          status: true,
+        },
+      });
+      this.logger.log(`User ${user.id} role updated from previous role to ${suggestedRole} upon login`);
+    }
+
     if (!user) {
       isNewUser = true;
 
