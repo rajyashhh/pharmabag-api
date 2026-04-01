@@ -21,7 +21,7 @@ export class StorageService {
 
   constructor(private readonly config: ConfigService) {
     this.region = this.config.get<string>('AWS_REGION', 'ap-south-1');
-    this.bucket = this.config.get<string>('AWS_BUCKET', 'pharmabag-images');
+    this.bucket = this.config.get<string>('AWS_BUCKET', 'pharmabag03');
 
     this.s3 = new S3Client({
       region: this.region,
@@ -36,6 +36,7 @@ export class StorageService {
     'image/jpeg',
     'image/png',
     'image/webp',
+    'image/jpg',
   ];
 
   private readonly ALLOWED_DOC_TYPES = [
